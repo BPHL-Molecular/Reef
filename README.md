@@ -38,4 +38,4 @@ genetic-distance networks for public health genomics. *Microbial Genomics* (year
 Software: Zenodo DOI [to be minted].
 
 ## License
-[Choose one, e.g. MIT / BSD-3-Clause / Apache-2.0] — add a LICENSE file.
+MIT
