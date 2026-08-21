@@ -1,0 +1,2786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Loggerhead — Interactive Phylogenetic Tree Viewer</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 28' fill='none' stroke='%231a2e2a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><ellipse cx='16' cy='4' rx='2.3' ry='2'/><path d='M7 11 C 3 10, 1.5 12, 3 15'/><path d='M25 11 C 29 10, 30.5 12, 29 15'/><path d='M7 20 C 4 22, 3.5 25, 6 25'/><path d='M25 20 C 28 22, 28.5 25, 26 25'/><ellipse cx='16' cy='15' rx='10' ry='9'/><path d='M16 22 V19 M11 19 H21 M11 19 V15 M21 19 V15 M9 15 H13 M19 15 H23 M9 15 V11 M13 15 V11 M19 15 V11 M23 15 V11' stroke-width='1.3'/><circle cx='9' cy='11' r='1.1' fill='%231a2e2a' stroke='none'/><circle cx='13' cy='11' r='1.1' fill='%231a2e2a' stroke='none'/><circle cx='19' cy='11' r='1.1' fill='%231a2e2a' stroke='none'/><circle cx='23' cy='11' r='1.1' fill='%231a2e2a' stroke='none'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Geist:wght@300..700&family=JetBrains+Mono:wght@300..600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root {
+  --bg: #f6f1e7;
+  --bg-panel: #fbf8f1;
+  --bg-elevated: #ffffff;
+  --ink: #1a2e2a;
+  --ink-soft: #4a5e5a;
+  --ink-faint: #8a9a96;
+  --rule: #d8d0bf;
+  --rule-soft: #e7e0d0;
+  --accent: #c2410c;
+  --accent-soft: #fed7aa;
+  --accent-dark: #7c2d12;
+  --highlight: #fbbf24;
+  --green: #166534;
+  --blue: #1e40af;
+  --shadow: 0 1px 2px rgba(26,46,42,0.04), 0 4px 12px rgba(26,46,42,0.06);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100vh;
+  overflow: hidden;
+  font-family: 'Geist', -apple-system, sans-serif;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: radial-gradient(circle, rgba(26,46,42,0.04) 1px, transparent 1px);
+  background-size: 24px 24px;
+  pointer-events: none; z-index: 0;
+}
+.app {
+  position: relative; z-index: 1;
+  display: grid;
+  grid-template-columns: 280px 1fr 320px;
+  grid-template-rows: 56px 1fr;
+  height: 100vh;
+}
+header {
+  grid-column: 1 / -1;
+  display: flex; align-items: center; gap: 24px;
+  padding: 0 20px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--rule);
+  position: relative;
+}
+.brand {
+  display: flex; align-items: center; gap: 10px;
+  letter-spacing: -0.02em;
+}
+.brand-icon {
+  width: 30px; height: 26px;
+  color: var(--ink);
+  flex-shrink: 0;
+}
+.brand-text {
+  display: flex; align-items: baseline; gap: 8px;
+}
+.brand .logo {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-weight: 500;
+  font-size: 22px;
+  color: var(--ink);
+}
+.brand .tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--ink-faint);
+  padding-top: 4px;
+}
+.brand .tag::before {
+  content: '·';
+  margin-right: 8px;
+  color: var(--accent);
+}
+.header-actions {
+  margin-left: auto;
+  display: flex; align-items: center; gap: 8px;
+}
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 12px;
+  font-family: inherit; font-size: 12px; font-weight: 500;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.btn:hover { background: var(--bg-elevated); border-color: var(--ink-soft); }
+.btn:active { transform: translateY(1px); }
+.btn-primary {
+  background: var(--ink);
+  color: var(--bg-panel);
+  border-color: var(--ink);
+}
+.btn-primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+.btn-accent {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+.btn-accent:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+.btn svg { width: 13px; height: 13px; }
+.btn-icon {
+  padding: 7px;
+  width: 30px; height: 30px;
+  justify-content: center;
+}
+.export-group {
+  position: relative;
+}
+.export-menu {
+  position: absolute;
+  top: calc(100% + 6px); right: 0;
+  background: var(--bg-elevated);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  box-shadow: var(--shadow);
+  min-width: 160px;
+  display: none;
+  z-index: 100;
+  overflow: hidden;
+}
+.export-menu.open { display: block; }
+.export-menu button {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  color: var(--ink);
+  font-size: 12px;
+}
+.export-menu button:hover { background: var(--bg); }
+.export-menu .kbd {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+/* Sidebar */
+aside.controls {
+  background: var(--bg-panel);
+  border-right: 1px solid var(--rule);
+  overflow-y: auto;
+  padding: 20px 18px 40px;
+}
+aside.controls h3 {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-weight: 400;
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin-bottom: 10px;
+  letter-spacing: 0.01em;
+}
+aside.controls h3::before {
+  content: '§ ';
+  color: var(--accent);
+  font-style: normal;
+  margin-right: 2px;
+}
+.control-section {
+  padding: 14px 0;
+  border-bottom: 1px dashed var(--rule-soft);
+}
+.control-section:first-child { padding-top: 0; }
+.control-section:last-child { border-bottom: none; }
+.field {
+  margin-bottom: 10px;
+}
+.field:last-child { margin-bottom: 0; }
+.field label {
+  display: block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-faint);
+  margin-bottom: 5px;
+}
+.field select, .field input[type="text"], .field input[type="number"] {
+  width: 100%;
+  padding: 6px 8px;
+  font: inherit; font-size: 12px;
+  color: var(--ink);
+  background: var(--bg-elevated);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.field select:focus, .field input:focus { border-color: var(--accent); }
+.radio-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+.radio-pill {
+  position: relative;
+  cursor: pointer;
+}
+.radio-pill input {
+  position: absolute; opacity: 0;
+}
+.radio-pill span {
+  display: block;
+  padding: 6px 8px;
+  font-size: 11px;
+  text-align: center;
+  background: var(--bg-elevated);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  transition: all 0.15s;
+}
+.radio-pill input:checked + span {
+  background: var(--ink);
+  color: var(--bg-panel);
+  border-color: var(--ink);
+}
+.radio-pill:hover span { border-color: var(--ink-soft); }
+.toggle {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 5px 0;
+  font-size: 12px;
+  cursor: pointer;
+}
+.toggle input { display: none; }
+.toggle .switch {
+  width: 28px; height: 16px;
+  background: var(--rule);
+  border-radius: 10px;
+  position: relative;
+  transition: background 0.15s;
+}
+.toggle .switch::after {
+  content: '';
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 12px; height: 12px;
+  background: white;
+  border-radius: 50%;
+  transition: transform 0.15s;
+}
+.toggle input:checked + .switch { background: var(--accent); }
+.toggle input:checked + .switch::after { transform: translateX(12px); }
+.search-input {
+  position: relative;
+}
+.search-input input {
+  padding-left: 8px;
+}
+.legend {
+  margin-top: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.legend-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 3px 0;
+  font-size: 11px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.legend-item:hover { opacity: 0.7; }
+.legend-swatch {
+  width: 12px; height: 12px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  border: 1px solid rgba(0,0,0,0.1);
+}
+.legend-label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ink-soft);
+}
+.legend-item.hidden .legend-swatch { opacity: 0.2; }
+.legend-item.hidden .legend-label { text-decoration: line-through; color: var(--ink-faint); }
+.legend-gradient {
+  height: 10px;
+  border-radius: 2px;
+  margin: 4px 0;
+}
+.legend-gradient-labels {
+  display: flex; justify-content: space-between;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  color: var(--ink-faint);
+}
+
+/* Main */
+main {
+  position: relative;
+  background: var(--bg);
+  overflow: hidden;
+}
+#tree-container {
+  width: 100%; height: 100%;
+  cursor: grab;
+}
+#tree-container.dragging { cursor: grabbing; }
+#tree-svg {
+  width: 100%; height: 100%;
+  display: block;
+}
+.branch {
+  fill: none;
+  stroke: var(--ink);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.branch.dimmed { opacity: 0.15; }
+.node-tip {
+  cursor: pointer;
+  transition: opacity 0.1s;
+}
+.node-tip:hover { opacity: 0.7; }
+.node-internal {
+  cursor: pointer;
+  fill: var(--bg-panel);
+  stroke: var(--ink-soft);
+}
+.node-internal.collapsed {
+  fill: var(--accent);
+  stroke: var(--accent-dark);
+}
+.tip-label {
+  font-family: 'JetBrains Mono', monospace;
+  fill: var(--ink);
+  dominant-baseline: middle;
+  cursor: pointer;
+  user-select: none;
+}
+.tip-label:hover { fill: var(--accent-dark); }
+.node-tip.selected {
+  stroke: var(--accent);
+}
+.tip-label.selected { fill: var(--accent-dark); }
+.tip-label.dimmed { opacity: 0.2; }
+.tip-label.highlight {
+  font-weight: 600;
+  fill: var(--accent-dark);
+}
+.branch-label {
+  font-family: 'JetBrains Mono', monospace;
+  fill: var(--ink-soft);
+  pointer-events: none;
+  dominant-baseline: alphabetic;
+  user-select: none;
+}
+.scale-bar {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+}
+.scale-bar line { stroke: var(--ink); stroke-width: 1; }
+.scale-bar text { fill: var(--ink-soft); }
+
+/* Empty state */
+.empty-state {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center;
+  padding: 40px;
+  pointer-events: none;
+}
+.empty-state.hidden { display: none; }
+.empty-state > * { pointer-events: auto; }
+.empty-icon {
+  width: 80px; height: 80px;
+  margin-bottom: 24px;
+  color: var(--ink-faint);
+  opacity: 0.6;
+}
+.empty-title {
+  font-family: 'Fraunces', serif;
+  font-weight: 400;
+  font-size: 32px;
+  letter-spacing: -0.02em;
+  margin-bottom: 8px;
+  color: var(--ink);
+}
+.empty-title em {
+  font-style: italic;
+  color: var(--accent);
+}
+.empty-subtitle {
+  font-size: 13px;
+  color: var(--ink-soft);
+  max-width: 440px;
+  line-height: 1.6;
+  margin-bottom: 32px;
+}
+.empty-actions {
+  display: flex; gap: 10px; flex-wrap: wrap;
+  justify-content: center;
+}
+.dropzone {
+  border: 2px dashed var(--rule);
+  border-radius: 6px;
+  padding: 24px 40px;
+  margin-bottom: 16px;
+  transition: all 0.2s;
+  background: var(--bg-panel);
+}
+.dropzone.over {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.format-hint {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--ink-faint);
+  letter-spacing: 0.08em;
+  margin-top: 16px;
+}
+body.dragging::after {
+  content: 'Drop file to load';
+  position: fixed; inset: 0;
+  background: rgba(194,65,12,0.08);
+  border: 3px dashed var(--accent);
+  z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-size: 32px;
+  color: var(--accent-dark);
+  pointer-events: none;
+}
+
+/* Info panel */
+aside.info {
+  background: var(--bg-panel);
+  border-left: 1px solid var(--rule);
+  overflow-y: auto;
+  padding: 20px 18px;
+}
+.info-header {
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 14px;
+}
+.info-title {
+  font-family: 'Fraunces', serif;
+  font-weight: 400;
+  font-size: 18px;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  margin-bottom: 4px;
+  word-break: break-word;
+}
+.info-meta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--ink-faint);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.info-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--rule-soft);
+  border: 1px solid var(--rule-soft);
+  margin-bottom: 16px;
+}
+.stat {
+  background: var(--bg-panel);
+  padding: 10px 12px;
+}
+.stat-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-faint);
+  margin-bottom: 2px;
+}
+.stat-value {
+  font-family: 'Fraunces', serif;
+  font-size: 18px;
+  font-weight: 400;
+  color: var(--ink);
+}
+.attr-list {
+  list-style: none;
+}
+.attr-list li {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  gap: 10px;
+  padding: 6px 0;
+  font-size: 11.5px;
+  border-bottom: 1px dashed var(--rule-soft);
+}
+.attr-list li:last-child { border-bottom: none; }
+.attr-key {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.attr-value {
+  color: var(--ink);
+  word-break: break-word;
+  font-variant-numeric: tabular-nums;
+}
+.info-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--ink-faint);
+  font-size: 12px;
+  font-style: italic;
+  font-family: 'Fraunces', serif;
+}
+
+/* Tooltip */
+.tooltip {
+  position: fixed;
+  background: var(--ink);
+  color: var(--bg-panel);
+  padding: 8px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  pointer-events: none;
+  z-index: 1000;
+  max-width: 280px;
+  line-height: 1.5;
+  display: none;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+}
+.tooltip.show { display: block; }
+.tooltip .t-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  word-break: break-all;
+  color: white;
+}
+.tooltip .t-row {
+  display: flex; justify-content: space-between; gap: 12px;
+  font-size: 10.5px;
+  color: rgba(251,248,241,0.7);
+}
+.tooltip .t-row span:last-child { color: var(--bg-panel); }
+
+/* Zoom controls */
+.zoom-controls {
+  position: absolute;
+  bottom: 20px; right: 20px;
+  display: flex; flex-direction: column;
+  gap: 4px;
+  background: var(--bg-panel);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 4px;
+  box-shadow: var(--shadow);
+  z-index: 10;
+}
+.zoom-controls button {
+  width: 30px; height: 30px;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--ink);
+  border-radius: 3px;
+  font-family: inherit;
+}
+.zoom-controls button:hover { background: var(--bg); }
+.zoom-controls button svg { width: 14px; height: 14px; }
+
+/* Status bar */
+.status-bar {
+  position: absolute;
+  top: 16px; left: 16px;
+  display: flex; gap: 16px; align-items: center;
+  background: var(--bg-panel);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 7px 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--ink-soft);
+  box-shadow: var(--shadow);
+  z-index: 10;
+}
+.status-bar .dot {
+  width: 6px; height: 6px;
+  background: var(--accent);
+  border-radius: 50%;
+}
+.status-bar .sep {
+  width: 1px; height: 12px;
+  background: var(--rule);
+}
+
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: 24px; left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--ink);
+  color: var(--bg-panel);
+  padding: 10px 18px;
+  border-radius: 4px;
+  font-size: 12px;
+  z-index: 2000;
+  opacity: 0;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+}
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--ink-faint); }
+
+@media (max-width: 880px) {
+  .app { grid-template-columns: 240px 1fr 0px; }
+  aside.info { display: none; }
+}
+@media (max-width: 640px) {
+  .app { grid-template-columns: 0 1fr 0; grid-template-rows: 56px 1fr; }
+  aside.controls { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header>
+    <div class="brand">
+      <svg class="brand-icon" viewBox="0 0 32 28" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-label="Loggerhead logo">
+        <!-- Head -->
+        <ellipse cx="16" cy="4" rx="2.3" ry="2"/>
+        <!-- Front flippers -->
+        <path d="M7 11 C 3 10, 1.5 12, 3 15"/>
+        <path d="M25 11 C 29 10, 30.5 12, 29 15"/>
+        <!-- Back flippers -->
+        <path d="M7 20 C 4 22, 3.5 25, 6 25"/>
+        <path d="M25 20 C 28 22, 28.5 25, 26 25"/>
+        <!-- Shell -->
+        <ellipse cx="16" cy="15" rx="10" ry="9"/>
+        <!-- Phylogenetic tree inside shell (the shell pattern IS the tree) -->
+        <g stroke-width="1.1">
+          <path d="M16 22 V19"/>
+          <path d="M11 19 H21"/>
+          <path d="M11 19 V15"/>
+          <path d="M21 19 V15"/>
+          <path d="M9 15 H13"/>
+          <path d="M19 15 H23"/>
+          <path d="M9 15 V11"/>
+          <path d="M13 15 V11"/>
+          <path d="M19 15 V11"/>
+          <path d="M23 15 V11"/>
+        </g>
+        <!-- Tip nodes -->
+        <circle cx="9" cy="11" r="0.9" fill="currentColor" stroke="none"/>
+        <circle cx="13" cy="11" r="0.9" fill="currentColor" stroke="none"/>
+        <circle cx="19" cy="11" r="0.9" fill="currentColor" stroke="none"/>
+        <circle cx="23" cy="11" r="0.9" fill="currentColor" stroke="none"/>
+      </svg>
+      <div class="brand-text">
+        <span class="logo">Loggerhead</span>
+        <span class="tag">phylogenetic tree viewer</span>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="btn" id="load-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Load Tree
+      </button>
+      <button class="btn" id="demo-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        Demo
+      </button>
+      <div class="export-group">
+        <button class="btn btn-accent" id="export-btn" disabled style="opacity:0.4;cursor:not-allowed">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export
+        </button>
+        <div class="export-menu" id="export-menu">
+          <button data-format="svg">Save as SVG <span class="kbd">vector</span></button>
+          <button data-format="pdf">Save as PDF <span class="kbd">vector</span></button>
+          <button data-format="png">Save as PNG <span class="kbd">2× hi-res</span></button>
+          <button data-format="jpg">Save as JPG <span class="kbd">2× hi-res</span></button>
+        </div>
+      </div>
+      <input type="file" id="file-input" accept=".nwk,.tree,.tre,.newick,.json" style="display:none">
+    </div>
+  </header>
+
+  <aside class="controls" id="controls-panel">
+    <div class="control-section">
+      <h3>Layout</h3>
+      <div class="field">
+        <label>Tree shape</label>
+        <div class="radio-group">
+          <label class="radio-pill"><input type="radio" name="layout" value="rect" checked><span>Rectangular</span></label>
+          <label class="radio-pill"><input type="radio" name="layout" value="radial"><span>Radial</span></label>
+        </div>
+      </div>
+      <div class="field">
+        <label>Branch metric</label>
+        <div class="radio-group">
+          <label class="radio-pill"><input type="radio" name="metric" value="div" checked><span>Divergence</span></label>
+          <label class="radio-pill"><input type="radio" name="metric" value="cladogram"><span>Cladogram</span></label>
+        </div>
+      </div>
+    </div>
+
+    <div class="control-section">
+      <h3>Color</h3>
+      <div class="field">
+        <label>Color by</label>
+        <select id="color-by">
+          <option value="">— Uniform —</option>
+        </select>
+      </div>
+      <div class="legend" id="legend"></div>
+    </div>
+
+    <div class="control-section">
+      <h3>Display</h3>
+      <div class="field">
+        <label>Branch label</label>
+        <select id="branch-label">
+          <option value="">— None —</option>
+        </select>
+      </div>
+      <label class="toggle">
+        <span>Tip labels</span>
+        <input type="checkbox" id="show-tip-labels" checked>
+        <span class="switch"></span>
+      </label>
+      <label class="toggle">
+        <span>Tip circles</span>
+        <input type="checkbox" id="show-tips" checked>
+        <span class="switch"></span>
+      </label>
+      <label class="toggle">
+        <span>Internal nodes</span>
+        <input type="checkbox" id="show-internal">
+        <span class="switch"></span>
+      </label>
+      <label class="toggle">
+        <span>Scale bar</span>
+        <input type="checkbox" id="show-scale" checked>
+        <span class="switch"></span>
+      </label>
+    </div>
+
+    <div class="control-section">
+      <h3>Search</h3>
+      <div class="field">
+        <div class="search-input">
+          <input type="text" id="search" placeholder="Filter tips by name…">
+        </div>
+      </div>
+      <div class="field">
+        <label>Match: <span id="search-count" style="color:var(--ink);font-family:'JetBrains Mono',monospace">—</span></label>
+      </div>
+    </div>
+
+    <div class="control-section">
+      <h3>Geometry</h3>
+      <div class="field">
+        <label>Branch width</label>
+        <input type="range" id="branch-width" min="0.5" max="4" step="0.1" value="1.2" style="width:100%">
+      </div>
+      <div class="field">
+        <label>Tip label size</label>
+        <input type="range" id="label-size" min="6" max="16" step="0.5" value="9.5" style="width:100%">
+      </div>
+      <div class="field">
+        <label>Tip circle size</label>
+        <input type="range" id="tip-size" min="1" max="8" step="0.5" value="3" style="width:100%">
+      </div>
+    </div>
+  </aside>
+
+  <main>
+    <div id="tree-container">
+      <svg id="tree-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+
+    <div class="empty-state" id="empty-state">
+      <svg class="empty-icon" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M50 90 L50 60"/>
+        <path d="M50 60 L25 35"/>
+        <path d="M50 60 L75 35"/>
+        <path d="M25 35 L12 20"/>
+        <path d="M25 35 L38 18"/>
+        <path d="M75 35 L62 18"/>
+        <path d="M75 35 L88 20"/>
+        <circle cx="12" cy="20" r="2.5" fill="currentColor"/>
+        <circle cx="38" cy="18" r="2.5" fill="currentColor"/>
+        <circle cx="62" cy="18" r="2.5" fill="currentColor"/>
+        <circle cx="88" cy="20" r="2.5" fill="currentColor"/>
+      </svg>
+      <h1 class="empty-title">An <em>interactive</em> tree of life.</h1>
+      <p class="empty-subtitle">
+        Load a phylogenetic tree to explore — supports the Newick format
+        (<code style="font-family:'JetBrains Mono',monospace;font-size:11px">.nwk, .tree, .tre</code>)
+        and Auspice JSON v2 (<code style="font-family:'JetBrains Mono',monospace;font-size:11px">.json</code>)
+        as used by Nextstrain. Pan, zoom, search, recolor, then export to SVG, PDF, PNG, or JPG.
+      </p>
+      <div class="empty-actions">
+        <button class="btn btn-primary" onclick="document.getElementById('load-btn').click()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Choose file
+        </button>
+        <button class="btn" onclick="document.getElementById('demo-btn').click()">Try demo data</button>
+      </div>
+      <div class="format-hint">DROP A FILE ANYWHERE</div>
+    </div>
+
+    <div class="zoom-controls">
+      <button id="zoom-in" title="Zoom in">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </button>
+      <button id="zoom-out" title="Zoom out">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </button>
+      <button id="zoom-fit" title="Fit to view">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+      </button>
+    </div>
+
+    <div class="status-bar" id="status-bar" style="display:none">
+      <span class="dot"></span>
+      <span id="status-tips">0 tips</span>
+      <span class="sep"></span>
+      <span id="status-nodes">0 nodes</span>
+      <span class="sep"></span>
+      <span id="status-zoom">100%</span>
+      <span class="sep" id="status-hint-sep" style="display:none"></span>
+      <span id="status-hint" style="display:none; color: var(--accent)"></span>
+    </div>
+  </main>
+
+  <aside class="info">
+    <div id="info-content">
+      <div class="info-empty">
+        Click a node or tip in the tree to inspect its attributes here.
+      </div>
+    </div>
+  </aside>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ==========================================================================
+// Loggerhead — Interactive Phylogenetic Tree Viewer
+// Supports Newick format and Auspice JSON v2
+// ==========================================================================
+
+const state = {
+  tree: null,            // Parsed root node
+  meta: null,            // Auspice meta (or synthesized)
+  type: null,            // 'newick' | 'auspice'
+  filename: '',
+  layout: 'rect',
+  metric: 'div',
+  colorBy: '',
+  colorScale: null,
+  branchLabel: '',       // Internal-node attribute key to render on branches
+  showTipLabels: true,
+  showTips: true,
+  showInternal: false,
+  showScale: true,
+  branchWidth: 1.2,
+  labelSize: 9.5,
+  tipSize: 3,
+  searchTerm: '',
+  matchedNodes: new Set(),
+  hiddenCategories: new Set(),
+  transform: { x: 0, y: 0, k: 1 },
+  selectedNode: null,
+  width: 800,
+  height: 600
+};
+
+// ==========================================================================
+// NEWICK PARSER
+// ==========================================================================
+function parseNewick(str) {
+  str = str.trim();
+  // Strip everything before first paren or word
+  const semi = str.lastIndexOf(';');
+  if (semi >= 0) str = str.substring(0, semi);
+
+  let pos = 0;
+  let nodeIdCounter = 0;
+
+  function skipWhitespace() {
+    while (pos < str.length && /\s/.test(str[pos])) pos++;
+  }
+
+  function parseComment() {
+    if (str[pos] !== '[') return null;
+    let depth = 1;
+    pos++;
+    let comment = '';
+    while (pos < str.length && depth > 0) {
+      if (str[pos] === '[') depth++;
+      else if (str[pos] === ']') depth--;
+      if (depth > 0) comment += str[pos];
+      pos++;
+    }
+    return comment;
+  }
+
+  function parseName() {
+    skipWhitespace();
+    let name = '';
+    if (str[pos] === "'") {
+      pos++;
+      while (pos < str.length) {
+        if (str[pos] === "'") {
+          if (str[pos + 1] === "'") { name += "'"; pos += 2; }
+          else { pos++; break; }
+        } else { name += str[pos++]; }
+      }
+    } else if (str[pos] === '"') {
+      pos++;
+      while (pos < str.length && str[pos] !== '"') name += str[pos++];
+      pos++;
+    } else {
+      while (pos < str.length && !':,()[;'.includes(str[pos])) {
+        name += str[pos++];
+      }
+    }
+    return name.trim();
+  }
+
+  function parseLength() {
+    if (str[pos] !== ':') return 0;
+    pos++;
+    skipWhitespace();
+    let lenStr = '';
+    while (pos < str.length && /[0-9eE+\-.]/.test(str[pos])) {
+      lenStr += str[pos++];
+    }
+    return parseFloat(lenStr) || 0;
+  }
+
+  function parseClade() {
+    skipWhitespace();
+    const node = {
+      name: '',
+      branch_length: 0,
+      children: [],
+      attrs: {},
+      _id: nodeIdCounter++
+    };
+
+    if (str[pos] === '(') {
+      pos++;
+      node.children.push(parseClade());
+      skipWhitespace();
+      while (str[pos] === ',') {
+        pos++;
+        node.children.push(parseClade());
+        skipWhitespace();
+      }
+      if (str[pos] !== ')') throw new Error(`Expected ')' at position ${pos}`);
+      pos++;
+    }
+
+    node.name = parseName();
+
+    // Optional comment immediately after name (rare but valid)
+    extractNHX(node);
+
+    node.branch_length = parseLength();
+
+    // Trailing comment (this is the *common* position: name:length[&NHX:...])
+    extractNHX(node);
+
+    return node;
+  }
+
+  function extractNHX(node) {
+    if (str[pos] !== '[') return;
+    const comment = parseComment();
+    if (!comment) return;
+    if (comment.startsWith('&')) {
+      const body = comment.substring(1).replace(/^NHX:/, '');
+      body.split(/[,:]/).forEach(pair => {
+        const eq = pair.indexOf('=');
+        if (eq > 0) {
+          const k = pair.substring(0, eq).trim();
+          const v = pair.substring(eq + 1).trim();
+          node.attrs[k] = (v !== '' && !isNaN(+v)) ? +v : v;
+        }
+      });
+    } else {
+      node.attrs._comment = comment;
+    }
+  }
+
+  const root = parseClade();
+  root.branch_length = 0; // Root has no incoming branch
+  return root;
+}
+
+// ==========================================================================
+// AUSPICE JSON v2 PARSER
+// ==========================================================================
+function parseAuspice(json) {
+  if (!json.tree) throw new Error('Invalid Auspice JSON: missing tree property');
+
+  let nodeIdCounter = 0;
+  function convert(node, parentDiv = 0) {
+    const rawAttrs = node.node_attrs || {};
+    let div = parentDiv;
+    if (rawAttrs.div !== undefined) {
+      div = typeof rawAttrs.div === 'object' ? rawAttrs.div.value : rawAttrs.div;
+    }
+
+    const flatAttrs = {};
+    for (const [key, val] of Object.entries(rawAttrs)) {
+      if (val && typeof val === 'object' && 'value' in val) {
+        flatAttrs[key] = val.value;
+      } else if (typeof val !== 'object') {
+        flatAttrs[key] = val;
+      }
+    }
+
+    // Also flatten branch_attrs labels
+    if (node.branch_attrs) {
+      if (node.branch_attrs.labels) {
+        for (const [k, v] of Object.entries(node.branch_attrs.labels)) {
+          flatAttrs[`label_${k}`] = v;
+        }
+      }
+      if (node.branch_attrs.mutations) {
+        const muts = node.branch_attrs.mutations;
+        const total = Object.values(muts).reduce((s, a) => s + (Array.isArray(a) ? a.length : 0), 0);
+        flatAttrs['mutations'] = total;
+      }
+    }
+
+    return {
+      name: node.name || '',
+      branch_length: Math.max(0, div - parentDiv),
+      _div: div,
+      children: (node.children || []).map(c => convert(c, div)),
+      attrs: flatAttrs,
+      _id: nodeIdCounter++
+    };
+  }
+
+  const tree = convert(json.tree);
+  return {
+    tree,
+    meta: json.meta || {},
+    type: 'auspice'
+  };
+}
+
+// ==========================================================================
+// TREE LAYOUT
+// ==========================================================================
+function getDescendants(node) {
+  const all = [];
+  function walk(n) {
+    all.push(n);
+    if (n.children && !n.collapsed) n.children.forEach(walk);
+  }
+  walk(node);
+  return all;
+}
+
+function getTips(node) {
+  const tips = [];
+  function walk(n) {
+    if (!n.children || n.children.length === 0 || n.collapsed) tips.push(n);
+    else n.children.forEach(walk);
+  }
+  walk(node);
+  return tips;
+}
+
+function getAllTips(node) {
+  const tips = [];
+  function walk(n) {
+    if (!n.children || n.children.length === 0) tips.push(n);
+    else n.children.forEach(walk);
+  }
+  walk(node);
+  return tips;
+}
+
+function computeDepths(root) {
+  root.cumDist = 0;
+  root.depth = 0;
+  function walk(node, depth, dist) {
+    node.depth = depth;
+    node.cumDist = dist;
+    if (node.children) {
+      node.children.forEach(c => walk(c, depth + 1, dist + (c.branch_length || 0)));
+    }
+  }
+  walk(root, 0, 0);
+}
+
+function layoutRectangular(root, width, height) {
+  computeDepths(root);
+  const tips = getTips(root);
+  if (tips.length === 0) return;
+
+  // Assign Y positions to tips
+  const yStep = height / Math.max(tips.length - 1, 1);
+  tips.forEach((tip, i) => { tip.y = i * yStep; });
+
+  // Post-order: internal nodes get average Y of visible children
+  function postorder(node) {
+    if (node.children && node.children.length > 0 && !node.collapsed) {
+      node.children.forEach(postorder);
+      const visibleChildren = node.children;
+      node.y = (visibleChildren[0].y + visibleChildren[visibleChildren.length - 1].y) / 2;
+    }
+  }
+  postorder(root);
+
+  // X positions
+  let maxDist = 0;
+  getDescendants(root).forEach(n => { if (n.cumDist > maxDist) maxDist = n.cumDist; });
+  const maxDepth = Math.max(...getDescendants(root).map(d => d.depth), 1);
+
+  getDescendants(root).forEach(n => {
+    if (state.metric === 'cladogram') {
+      n.x = (n.depth / maxDepth) * width;
+    } else {
+      n.x = maxDist > 0 ? (n.cumDist / maxDist) * width : 0;
+    }
+  });
+
+  state.maxDist = maxDist;
+}
+
+function layoutRadial(root, width, height) {
+  computeDepths(root);
+  const tips = getTips(root);
+  if (tips.length === 0) return;
+
+  const radius = Math.min(width, height) / 2 - 60;
+  const cx = width / 2;
+  const cy = height / 2;
+
+  const angleStep = (2 * Math.PI) / tips.length;
+  tips.forEach((tip, i) => { tip.angle = i * angleStep; });
+
+  function postorder(node) {
+    if (node.children && node.children.length > 0 && !node.collapsed) {
+      node.children.forEach(postorder);
+      const angles = node.children.map(c => c.angle);
+      node.angle = (Math.min(...angles) + Math.max(...angles)) / 2;
+    }
+  }
+  postorder(root);
+
+  let maxDist = 0;
+  getDescendants(root).forEach(n => { if (n.cumDist > maxDist) maxDist = n.cumDist; });
+  const maxDepth = Math.max(...getDescendants(root).map(d => d.depth), 1);
+
+  getDescendants(root).forEach(n => {
+    const r = state.metric === 'cladogram'
+      ? (n.depth / maxDepth) * radius
+      : (maxDist > 0 ? (n.cumDist / maxDist) * radius : 0);
+    n.r = r;
+    n.x = cx + r * Math.cos(n.angle - Math.PI / 2);
+    n.y = cy + r * Math.sin(n.angle - Math.PI / 2);
+  });
+
+  state.cx = cx;
+  state.cy = cy;
+  state.maxRadius = radius;
+  state.maxDist = maxDist;
+}
+
+// ==========================================================================
+// COLORING
+// ==========================================================================
+const DEFAULT_PALETTE = [
+  '#1b9e77', '#d95f02', '#7570b3', '#e7298a', '#66a61e',
+  '#e6ab02', '#a6761d', '#666666', '#1f78b4', '#33a02c',
+  '#fb9a99', '#fdbf6f', '#cab2d6', '#ffff99', '#b15928'
+];
+
+function buildColorScale(colorBy) {
+  if (!colorBy || !state.tree) { state.colorScale = null; return; }
+
+  // Use Auspice scale if available
+  const meta = state.meta || {};
+  const colorings = meta.colorings || [];
+  const coloring = colorings.find(c => c.key === colorBy);
+
+  const allNodes = getAllNodes(state.tree);
+  const values = allNodes.map(n => n.attrs && n.attrs[colorBy]).filter(v => v !== undefined && v !== null && v !== '');
+
+  if (values.length === 0) { state.colorScale = null; return; }
+
+  // Detect type
+  const isNumeric = values.every(v => typeof v === 'number' || (!isNaN(+v) && v !== ''));
+  const type = coloring ? coloring.type : (isNumeric ? 'continuous' : 'categorical');
+
+  if (type === 'continuous' || type === 'temporal') {
+    const nums = values.map(v => +v).filter(v => !isNaN(v));
+    const min = Math.min(...nums);
+    const max = Math.max(...nums);
+    const interp = d3.interpolateViridis;
+    state.colorScale = {
+      type: 'continuous',
+      key: colorBy,
+      title: coloring ? coloring.title : colorBy,
+      min, max,
+      fn: v => {
+        if (v === undefined || v === null || v === '') return '#cccccc';
+        const num = +v;
+        if (isNaN(num)) return '#cccccc';
+        return interp((num - min) / (max - min || 1));
+      }
+    };
+  } else {
+    // Categorical
+    let categories;
+    let palette;
+    if (coloring && coloring.scale) {
+      categories = coloring.scale.map(s => s[0]);
+      palette = coloring.scale.map(s => s[1]);
+    } else {
+      categories = [...new Set(values.map(v => String(v)))].sort();
+      palette = categories.map((_, i) => DEFAULT_PALETTE[i % DEFAULT_PALETTE.length]);
+    }
+    const map = {};
+    categories.forEach((c, i) => { map[String(c)] = palette[i]; });
+    state.colorScale = {
+      type: 'categorical',
+      key: colorBy,
+      title: coloring ? coloring.title : colorBy,
+      categories,
+      palette,
+      map,
+      fn: v => {
+        if (v === undefined || v === null || v === '') return '#cccccc';
+        return map[String(v)] || '#cccccc';
+      }
+    };
+  }
+}
+
+function getAllNodes(root) {
+  const all = [];
+  function walk(n) { all.push(n); if (n.children) n.children.forEach(walk); }
+  walk(root);
+  return all;
+}
+
+function nodeColor(node) {
+  if (!state.colorScale) return '#1a2e2a';
+  const v = node.attrs && node.attrs[state.colorScale.key];
+  if (state.colorScale.type === 'categorical' && state.hiddenCategories.has(String(v))) {
+    return 'rgba(0,0,0,0.05)';
+  }
+  return state.colorScale.fn(v);
+}
+
+// ==========================================================================
+// RENDERING
+// ==========================================================================
+function render() {
+  if (!state.tree) return;
+
+  const container = document.getElementById('tree-container');
+  const rect = container.getBoundingClientRect();
+  state.width = rect.width;
+  state.height = rect.height;
+
+  // Plotting area (account for margins for labels)
+  const padding = state.layout === 'radial' ? 40 : 60;
+  const labelSpace = state.showTipLabels ? Math.min(200, state.width * 0.25) : 20;
+
+  const innerW = state.layout === 'radial' ? state.width : state.width - padding - labelSpace;
+  const innerH = state.height - padding * 2;
+
+  if (state.layout === 'rect') {
+    layoutRectangular(state.tree, innerW, innerH);
+  } else {
+    layoutRadial(state.tree, state.width, state.height);
+  }
+
+  // Record per-tip spacing in tree (un-zoomed) coordinates. updateLabelVisibility
+  // uses this together with the current zoom k to decide whether labels would
+  // overlap and should be auto-hidden.
+  const tipCount = getTips(state.tree).length;
+  if (state.layout === 'rect') {
+    state.tipSpacing = innerH / Math.max(tipCount - 1, 1);
+  } else {
+    // On a radial layout, two adjacent tips' arc length depends on radius
+    state.tipSpacing = (2 * Math.PI * state.maxRadius) / Math.max(tipCount, 1);
+  }
+
+  const svg = d3.select('#tree-svg');
+  svg.attr('viewBox', `0 0 ${state.width} ${state.height}`);
+  svg.selectAll('*').remove();
+
+  const defs = svg.append('defs');
+
+  // Main group with zoom transform
+  const g = svg.append('g').attr('class', 'zoom-group');
+
+  // Offset for rectangular layout
+  const offsetX = state.layout === 'rect' ? padding : 0;
+  const offsetY = state.layout === 'rect' ? padding : 0;
+
+  const treeG = g.append('g').attr('transform', `translate(${offsetX}, ${offsetY})`);
+
+  // ----- Branches -----
+  const nodes = getDescendants(state.tree);
+  const links = nodes.filter(n => n.parent || n._parent);
+
+  // Assign parent refs once
+  function assignParents(node, parent = null) {
+    node._parent = parent;
+    if (node.children) {
+      const cs = node.collapsed ? [] : node.children;
+      cs.forEach(c => assignParents(c, node));
+    }
+  }
+  assignParents(state.tree);
+
+  const visibleNodes = getDescendants(state.tree);
+  const branchesG = treeG.append('g').attr('class', 'branches');
+
+  visibleNodes.forEach(node => {
+    if (!node._parent) return;
+    let pathD;
+    if (state.layout === 'rect') {
+      pathD = `M${node._parent.x},${node._parent.y} V${node.y} H${node.x}`;
+    } else {
+      // Radial: arc from parent's radius, then radial line outward
+      const px = state.cx + node._parent.r * Math.cos(node.angle - Math.PI / 2);
+      const py = state.cy + node._parent.r * Math.sin(node.angle - Math.PI / 2);
+      // Arc from parent.x,parent.y to (px,py) along radius parent.r
+      const startAngle = node._parent.angle - Math.PI / 2;
+      const endAngle = node.angle - Math.PI / 2;
+      const largeArc = Math.abs(endAngle - startAngle) > Math.PI ? 1 : 0;
+      const sweepFlag = endAngle > startAngle ? 1 : 0;
+      const arcD = node._parent.r > 0
+        ? `M${node._parent.x},${node._parent.y} A${node._parent.r},${node._parent.r} 0 ${largeArc} ${sweepFlag} ${px},${py}`
+        : `M${node._parent.x},${node._parent.y}`;
+      pathD = `${arcD} L${node.x},${node.y}`;
+    }
+    branchesG.append('path')
+      .attr('class', 'branch')
+      .attr('d', pathD)
+      .attr('stroke', nodeColor(node))
+      .attr('stroke-width', state.branchWidth)
+      .attr('data-id', node._id);
+  });
+
+  // ----- Branch labels (bootstrap, mutations, clade, etc.) -----
+  if (state.branchLabel) {
+    const labelsG = treeG.append('g').attr('class', 'branch-labels');
+    const isInternal = n => n.children && n.children.length > 0;
+    visibleNodes.forEach(node => {
+      if (!node._parent) return;
+      if (!isInternal(node)) return; // labels only on internal-node branches
+      const val = node.attrs && node.attrs[state.branchLabel];
+      if (val === undefined || val === null || val === '') return;
+      const text = formatValue(val);
+
+      if (state.layout === 'rect') {
+        // Midpoint of the horizontal portion of the branch (at child's y)
+        const mx = (node._parent.x + node.x) / 2;
+        const my = node.y - 3;
+        labelsG.append('text')
+          .attr('class', 'branch-label')
+          .attr('x', mx).attr('y', my)
+          .attr('text-anchor', 'middle')
+          .attr('font-size', Math.max(state.labelSize - 1.5, 6))
+          .text(text);
+      } else {
+        // Radial: at the midpoint of the radial line segment
+        const mr = (node._parent.r + node.r) / 2;
+        const mx = state.cx + mr * Math.cos(node.angle - Math.PI / 2);
+        const my = state.cy + mr * Math.sin(node.angle - Math.PI / 2);
+        const angleDeg = (node.angle * 180 / Math.PI) - 90;
+        const flip = node.angle > Math.PI / 2 && node.angle < 3 * Math.PI / 2;
+        const rotate = flip ? angleDeg + 180 : angleDeg;
+        labelsG.append('text')
+          .attr('class', 'branch-label')
+          .attr('x', mx).attr('y', my - 3)
+          .attr('text-anchor', 'middle')
+          .attr('transform', `rotate(${rotate}, ${mx}, ${my})`)
+          .attr('font-size', Math.max(state.labelSize - 1.5, 6))
+          .text(text);
+      }
+    });
+  }
+
+  // ----- Internal nodes -----
+  if (state.showInternal) {
+    const internalG = treeG.append('g').attr('class', 'internals');
+    visibleNodes.forEach(node => {
+      if (!node.children || node.children.length === 0) return;
+      const isSelected = state.selectedNode && state.selectedNode._id === node._id;
+      internalG.append('circle')
+        .attr('class', 'node-internal' + (node.collapsed ? ' collapsed' : '') + (isSelected ? ' selected' : ''))
+        .attr('cx', node.x).attr('cy', node.y)
+        .attr('r', node.collapsed ? state.tipSize : 2.5)
+        .attr('fill', node.collapsed ? nodeColor(node) : '#fbf8f1')
+        .attr('stroke', isSelected ? '#c2410c' : '#4a5e5a')
+        .attr('stroke-width', isSelected ? 2 : 1)
+        .attr('data-id', node._id)
+        .on('click', (e) => { e.stopPropagation(); selectNode(node); })
+        .on('dblclick', (e) => { e.stopPropagation(); e.preventDefault(); toggleCollapse(node); })
+        .on('mouseenter', (e) => showTooltip(e, node))
+        .on('mouseleave', hideTooltip);
+    });
+  }
+
+  // ----- Tips -----
+  const tipNodes = getTips(state.tree);
+  const tipsG = treeG.append('g').attr('class', 'tips');
+
+  tipNodes.forEach((tip, tipIndex) => {
+    const isSelected = state.selectedNode && state.selectedNode._id === tip._id;
+
+    if (state.showTips) {
+      tipsG.append('circle')
+        .attr('class', 'node-tip' + (isSelected ? ' selected' : ''))
+        .attr('cx', tip.x).attr('cy', tip.y)
+        .attr('r', state.tipSize)
+        .attr('fill', nodeColor(tip))
+        .attr('stroke', isSelected ? '#c2410c' : (d3.color(nodeColor(tip)) ? d3.color(nodeColor(tip)).darker(0.5) : '#000'))
+        .attr('stroke-width', isSelected ? 2 : 0.5)
+        .attr('data-id', tip._id)
+        .attr('data-tip-index', tipIndex)
+        .on('click', (e) => { e.stopPropagation(); selectNode(tip); })
+        .on('mouseenter', (e) => showTooltip(e, tip))
+        .on('mouseleave', hideTooltip);
+    }
+
+    if (state.showTipLabels) {
+      let labelEl;
+      if (state.layout === 'rect') {
+        // x is the tip's world position; dx is the gap to the label, which we
+        // counter-scale in applyCounterScale so it stays a constant screen offset.
+        labelEl = tipsG.append('text')
+          .attr('class', 'tip-label rect-label' + (isSelected ? ' selected' : ''))
+          .attr('x', tip.x)
+          .attr('y', tip.y)
+          .attr('dx', state.tipSize + 3)
+          .attr('font-size', state.labelSize)
+          .attr('data-tip-index', tipIndex)
+          .text(tip.name)
+          .on('click', (e) => { e.stopPropagation(); selectNode(tip); })
+          .on('mouseenter', (e) => showTooltip(e, tip))
+          .on('mouseleave', hideTooltip);
+      } else {
+        const angleDeg = (tip.angle * 180 / Math.PI) - 90;
+        const flip = (tip.angle > Math.PI / 2 && tip.angle < 3 * Math.PI / 2);
+        const rotate = flip ? angleDeg + 180 : angleDeg;
+        const offsetR = state.tipSize + 4;
+        const lx = state.cx + (tip.r + offsetR) * Math.cos(tip.angle - Math.PI / 2);
+        const ly = state.cy + (tip.r + offsetR) * Math.sin(tip.angle - Math.PI / 2);
+        labelEl = tipsG.append('text')
+          .attr('class', 'tip-label radial-label' + (isSelected ? ' selected' : ''))
+          .attr('x', lx).attr('y', ly)
+          .attr('text-anchor', flip ? 'end' : 'start')
+          .attr('transform', `rotate(${rotate}, ${lx}, ${ly})`)
+          .attr('font-size', state.labelSize)
+          .attr('data-tip-index', tipIndex)
+          .text(tip.name)
+          .on('click', (e) => { e.stopPropagation(); selectNode(tip); })
+          .on('mouseenter', (e) => showTooltip(e, tip))
+          .on('mouseleave', hideTooltip);
+      }
+      if (state.searchTerm && state.matchedNodes.has(tip._id)) {
+        labelEl.classed('highlight', true);
+      } else if (state.searchTerm) {
+        labelEl.classed('dimmed', true);
+      }
+    }
+  });
+
+  // ----- Scale bar -----
+  if (state.showScale && state.maxDist > 0 && state.metric !== 'cladogram') {
+    drawScaleBar(svg, padding);
+  }
+
+  // ----- Apply current transform -----
+  applyTransform();
+
+  // ----- Counter-scale labels and circles so they stay readable at any zoom -----
+  applyCounterScale();
+
+  // ----- Auto-hide tip labels / circles / branch labels when too crowded -----
+  updateLabelVisibility();
+
+  // ----- Status -----
+  document.getElementById('status-bar').style.display = 'flex';
+  document.getElementById('status-tips').textContent = `${getAllTips(state.tree).length} tips`;
+  document.getElementById('status-nodes').textContent = `${getAllNodes(state.tree).length} nodes`;
+}
+
+// d3.zoom transforms the whole SVG group, which means text and circles inside
+// scale with the tree — at 10× zoom the labels are also 10× larger and overlap
+// just as badly as at 1× zoom. Fix: counter-scale font-size / r / stroke-width
+// by 1/k so the parent's scale(k) and our 1/k cancel out and labels render at
+// constant screen size. The tree branches still stretch with zoom (so adjacent
+// tips really do get further apart on screen), and once that screen-spacing
+// exceeds the constant label size, updateLabelVisibility shows them.
+function applyCounterScale() {
+  if (!state.tree) return;
+  const k = currentTransform ? currentTransform.k : 1;
+  const inv = 1 / k;
+
+  d3.selectAll('.tip-label')
+    .attr('font-size', state.labelSize * inv);
+
+  // Rectangular labels: counter-scale dx so the tip→label gap stays a constant
+  // number of screen pixels, not "tipSize+3 tree units × k".
+  d3.selectAll('.rect-label')
+    .attr('dx', (state.tipSize + 3) * inv);
+
+  d3.selectAll('.node-tip')
+    .attr('r', state.tipSize * inv)
+    .attr('stroke-width', 0.5 * inv);
+  // selected tip gets a thicker outline (must come after default, since
+  // applyCounterScale overwrites stroke-width on every zoom event)
+  d3.selectAll('.node-tip.selected')
+    .attr('stroke-width', 2 * inv);
+
+  d3.selectAll('.node-internal').each(function() {
+    const collapsed = this.classList.contains('collapsed');
+    const baseR = collapsed ? state.tipSize : 2.5;
+    this.setAttribute('r', baseR * inv);
+    this.setAttribute('stroke-width', 1 * inv);
+  });
+
+  d3.selectAll('.branch-label')
+    .attr('font-size', Math.max(state.labelSize - 1.5, 6) * inv);
+
+  d3.selectAll('.branch')
+    .attr('stroke-width', state.branchWidth * inv);
+}
+
+// Decide which tip labels / circles to show. Rather than the old binary "hide
+// everything when too tight", we use a stride: show every N-th tip so the user
+// always sees some labels and can read clade context. The stride shrinks (→ more
+// labels) as you zoom in.
+function updateLabelVisibility() {
+  if (!state.tree || !state.tipSpacing) return;
+
+  const k = currentTransform ? currentTransform.k : 1;
+  const screenSpacing = state.tipSpacing * k;     // pixels per tip on screen
+
+  const labelRoom = state.labelSize * 0.85;
+  const circleRoom = Math.max(2.5, state.tipSize * 1.2);
+  const branchLabelRoom = Math.max(state.labelSize - 1.5, 6) * 0.85;
+
+  const labelStride  = state.showTipLabels ? Math.max(1, Math.ceil(labelRoom / Math.max(screenSpacing, 0.0001))) : 1;
+  const circleStride = state.showTips      ? Math.max(1, Math.ceil(circleRoom / Math.max(screenSpacing, 0.0001))) : 1;
+  const branchLabelStride = state.branchLabel ? Math.max(1, Math.ceil(branchLabelRoom / Math.max(screenSpacing, 0.0001))) : 1;
+
+  const totalTips = getTips(state.tree).length;
+
+  if (state.showTipLabels) {
+    d3.selectAll('.tip-label').style('display', function() {
+      const idx = +this.getAttribute('data-tip-index');
+      return (idx % labelStride === 0) ? null : 'none';
+    });
+  } else {
+    d3.selectAll('.tip-label').style('display', 'none');
+  }
+
+  if (state.showTips) {
+    d3.selectAll('.node-tip').style('display', function() {
+      const idx = +this.getAttribute('data-tip-index');
+      return (idx % circleStride === 0) ? null : 'none';
+    });
+  } else {
+    d3.selectAll('.node-tip').style('display', 'none');
+  }
+
+  // Branch labels still use the simpler all-or-nothing because internal-node
+  // positions aren't evenly spaced like tips are.
+  d3.selectAll('.branch-label').style('display',
+    (state.branchLabel && screenSpacing >= branchLabelRoom) ? null : 'none');
+
+  // Status-bar hint
+  const visibleLabels = state.showTipLabels ? Math.ceil(totalTips / labelStride) : 0;
+  const hint = document.getElementById('status-hint');
+  const hintSep = document.getElementById('status-hint-sep');
+  if (hint) {
+    if (state.showTipLabels && labelStride > 1) {
+      hint.style.display = '';
+      if (hintSep) hintSep.style.display = '';
+      hint.textContent = `${visibleLabels}/${totalTips} labels — zoom in for more`;
+    } else {
+      hint.style.display = 'none';
+      if (hintSep) hintSep.style.display = 'none';
+    }
+  }
+}
+
+function drawScaleBar(svg, padding) {
+  // Scale bar: width = 1/4 of total tree width, in same units
+  let pixelWidth, distWidth;
+  if (state.layout === 'rect') {
+    const innerW = state.width - padding - (state.showTipLabels ? Math.min(200, state.width * 0.25) : 20);
+    // Pick a "nice" distance
+    const targetPx = innerW / 4;
+    const targetDist = (targetPx / innerW) * state.maxDist;
+    const mag = Math.pow(10, Math.floor(Math.log10(targetDist)));
+    const niceVals = [1, 2, 5, 10];
+    distWidth = niceVals.map(v => v * mag).reduce((a, b) =>
+      Math.abs(b - targetDist) < Math.abs(a - targetDist) ? b : a
+    );
+    pixelWidth = (distWidth / state.maxDist) * innerW;
+  } else {
+    const targetPx = state.maxRadius / 4;
+    const targetDist = (targetPx / state.maxRadius) * state.maxDist;
+    const mag = Math.pow(10, Math.floor(Math.log10(targetDist)));
+    const niceVals = [1, 2, 5, 10];
+    distWidth = niceVals.map(v => v * mag).reduce((a, b) =>
+      Math.abs(b - targetDist) < Math.abs(a - targetDist) ? b : a
+    );
+    pixelWidth = (distWidth / state.maxDist) * state.maxRadius;
+  }
+
+  const g = svg.append('g')
+    .attr('class', 'scale-bar')
+    .attr('transform', `translate(${padding}, ${state.height - 30})`);
+
+  g.append('line')
+    .attr('x1', 0).attr('y1', 0).attr('x2', pixelWidth).attr('y2', 0);
+  g.append('line')
+    .attr('x1', 0).attr('y1', -3).attr('x2', 0).attr('y2', 3);
+  g.append('line')
+    .attr('x1', pixelWidth).attr('y1', -3).attr('x2', pixelWidth).attr('y2', 3);
+  g.append('text')
+    .attr('x', pixelWidth / 2).attr('y', -6)
+    .attr('text-anchor', 'middle')
+    .text(distWidth < 0.001 ? distWidth.toExponential(1) : (distWidth < 1 ? distWidth.toPrecision(2) : distWidth.toString()));
+}
+
+// ==========================================================================
+// INTERACTIONS
+// ==========================================================================
+let currentTransform = d3.zoomIdentity;
+let zoomBehavior;
+
+function setupZoom() {
+  const svg = d3.select('#tree-svg');
+  zoomBehavior = d3.zoom()
+    .scaleExtent([0.05, 200])
+    .filter((event) => {
+      // Always allow wheel zoom
+      if (event.type === 'wheel') return true;
+      // For mousedown/touchstart, don't capture if the target is an interactive node —
+      // otherwise d3.zoom's stopImmediatePropagation would eat the click event.
+      const t = event.target;
+      if (t && t.classList && (
+        t.classList.contains('node-tip') ||
+        t.classList.contains('node-internal')
+      )) return false;
+      return !event.ctrlKey && !event.button;
+    })
+    .on('zoom', (event) => {
+      currentTransform = event.transform;
+      d3.select('.zoom-group').attr('transform', event.transform);
+      document.getElementById('status-zoom').textContent = Math.round(event.transform.k * 100) + '%';
+      applyCounterScale();
+      updateLabelVisibility();
+    });
+  svg.call(zoomBehavior);
+  // Disable d3.zoom's default double-click-to-zoom behaviour, otherwise it
+  // swallows the dblclick events we use to expand / collapse internal nodes.
+  svg.on('dblclick.zoom', null);
+}
+
+function applyTransform() {
+  if (currentTransform) {
+    d3.select('.zoom-group').attr('transform', currentTransform);
+  }
+}
+
+function fitToView() {
+  const svg = d3.select('#tree-svg');
+  svg.transition().duration(400).call(zoomBehavior.transform, d3.zoomIdentity);
+}
+
+function toggleCollapse(node) {
+  node.collapsed = !node.collapsed;
+  render();
+  // If the toggled node is the one currently selected, refresh the info panel
+  // so its Expand/Collapse button label matches the new state
+  if (state.selectedNode && state.selectedNode._id === node._id) {
+    updateInfoPanel();
+  }
+}
+
+function selectNode(node) {
+  state.selectedNode = node;
+  updateInfoPanel();
+  if (state.tree) render();
+
+  // If the info panel is hidden (narrow window), surface the selection as a toast
+  const aside = document.querySelector('aside.info');
+  if (aside && getComputedStyle(aside).display === 'none' && node) {
+    const kind = (!node.children || node.children.length === 0) ? 'tip' : 'clade';
+    toast(`Selected ${kind}: ${node.name || '(unnamed)'}`);
+  }
+}
+
+function updateInfoPanel() {
+  const container = document.getElementById('info-content');
+  const node = state.selectedNode;
+  if (!node) {
+    container.innerHTML = '<div class="info-empty">Click a node or tip in the tree to inspect its attributes here.<br><br><span style="font-size:11px">Double-click an internal node to collapse / expand its clade.</span></div>';
+    return;
+  }
+
+  const isTip = !node.children || node.children.length === 0;
+  const descendants = isTip ? 1 : getAllTips(node).length;
+
+  let html = '';
+  html += `<div class="info-header">`;
+  html += `<div class="info-title">${escapeHtml(node.name || '(unnamed)')}</div>`;
+  html += `<div class="info-meta">${isTip ? 'TIP · LEAF' : 'INTERNAL NODE · CLADE'}</div>`;
+  html += `</div>`;
+
+  html += `<div class="info-stats">`;
+  if (!isTip) {
+    html += `<div class="stat"><div class="stat-label">Descendants</div><div class="stat-value">${descendants}</div></div>`;
+    html += `<div class="stat"><div class="stat-label">Depth</div><div class="stat-value">${node.depth || 0}</div></div>`;
+  } else {
+    html += `<div class="stat"><div class="stat-label">Branch length</div><div class="stat-value">${formatNumber(node.branch_length)}</div></div>`;
+    html += `<div class="stat"><div class="stat-label">Divergence</div><div class="stat-value">${formatNumber(node.cumDist)}</div></div>`;
+  }
+  html += `</div>`;
+
+  // Attributes
+  if (node.attrs && Object.keys(node.attrs).length > 0) {
+    html += `<h3 style="font-family:'Fraunces',serif;font-style:italic;font-weight:400;font-size:13px;color:var(--ink-soft);margin-bottom:8px">§ Attributes</h3>`;
+    html += `<ul class="attr-list">`;
+    Object.entries(node.attrs).forEach(([k, v]) => {
+      if (k === 'div') return;
+      html += `<li><span class="attr-key">${escapeHtml(k)}</span><span class="attr-value">${escapeHtml(formatValue(v))}</span></li>`;
+    });
+    html += `</ul>`;
+  }
+
+  if (!isTip) {
+    html += `<div style="margin-top:14px;display:flex;gap:8px">`;
+    html += `<button class="btn" onclick="toggleCollapseSelected()" style="flex:1">${node.collapsed ? 'Expand' : 'Collapse'} clade</button>`;
+    html += `</div>`;
+  }
+
+  container.innerHTML = html;
+}
+
+window.toggleCollapseSelected = function() {
+  if (state.selectedNode) toggleCollapse(state.selectedNode);
+};
+
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function formatNumber(n) {
+  if (n == null || isNaN(n)) return '—';
+  if (n === 0) return '0';
+  if (Math.abs(n) < 0.001) return n.toExponential(2);
+  if (Math.abs(n) < 1) return n.toFixed(4);
+  return n.toFixed(4);
+}
+
+function formatValue(v) {
+  if (v == null) return '—';
+  if (typeof v === 'number') {
+    if (Math.abs(v) > 100) return v.toFixed(1);
+    if (Math.abs(v) < 0.001 && v !== 0) return v.toExponential(2);
+    return v.toFixed(3).replace(/\.?0+$/, '');
+  }
+  return String(v);
+}
+
+function showTooltip(event, node) {
+  const tip = document.getElementById('tooltip');
+  let html = `<div class="t-title">${escapeHtml(node.name || '(internal)')}</div>`;
+  if (node.cumDist !== undefined) {
+    html += `<div class="t-row"><span>divergence</span><span>${formatNumber(node.cumDist)}</span></div>`;
+  }
+  if (node.branch_length) {
+    html += `<div class="t-row"><span>branch len</span><span>${formatNumber(node.branch_length)}</span></div>`;
+  }
+  if (state.colorScale && node.attrs) {
+    const v = node.attrs[state.colorScale.key];
+    if (v !== undefined) {
+      html += `<div class="t-row"><span>${escapeHtml(state.colorScale.title)}</span><span>${escapeHtml(formatValue(v))}</span></div>`;
+    }
+  }
+  tip.innerHTML = html;
+  tip.classList.add('show');
+  positionTooltip(event);
+}
+
+function positionTooltip(event) {
+  const tip = document.getElementById('tooltip');
+  const x = event.clientX + 12;
+  const y = event.clientY + 12;
+  const rect = tip.getBoundingClientRect();
+  tip.style.left = Math.min(x, window.innerWidth - rect.width - 10) + 'px';
+  tip.style.top = Math.min(y, window.innerHeight - rect.height - 10) + 'px';
+}
+
+function hideTooltip() {
+  document.getElementById('tooltip').classList.remove('show');
+}
+
+document.addEventListener('mousemove', (e) => {
+  const tip = document.getElementById('tooltip');
+  if (tip.classList.contains('show')) positionTooltip(e);
+});
+
+// ==========================================================================
+// FILE LOADING
+// ==========================================================================
+function loadTree(content, filename) {
+  try {
+    const trimmed = content.trim();
+    if (trimmed.startsWith('{')) {
+      // JSON
+      const json = JSON.parse(trimmed);
+      const parsed = parseAuspice(json);
+      state.tree = parsed.tree;
+      state.meta = parsed.meta;
+      state.type = 'auspice';
+    } else {
+      // Newick
+      state.tree = parseNewick(trimmed);
+      state.meta = {};
+      state.type = 'newick';
+    }
+    state.filename = filename;
+    state.selectedNode = null;
+    state.matchedNodes = new Set();
+    state.hiddenCategories = new Set();
+
+    // Reset zoom
+    currentTransform = d3.zoomIdentity;
+    const svg = d3.select('#tree-svg');
+    if (zoomBehavior) svg.call(zoomBehavior.transform, d3.zoomIdentity);
+
+    // Populate color-by options
+    populateColorByOptions();
+    state.colorBy = '';
+    if (state.type === 'auspice' && state.meta.display_defaults && state.meta.display_defaults.color_by) {
+      const dd = state.meta.display_defaults.color_by;
+      if (document.querySelector(`#color-by option[value="${dd}"]`)) {
+        state.colorBy = dd;
+        document.getElementById('color-by').value = dd;
+      }
+    }
+    buildColorScale(state.colorBy);
+    renderLegend();
+
+    // Populate branch-label options
+    populateBranchLabelOptions();
+    state.branchLabel = '';
+    if (state.type === 'auspice' && state.meta.display_defaults && state.meta.display_defaults.branch_label) {
+      const dd = state.meta.display_defaults.branch_label;
+      // Auspice convention: branch_label === "clade" maps to clade_membership, etc.
+      // First try exact match, then with label_ prefix (for branch_attrs.labels)
+      const candidate = document.querySelector(`#branch-label option[value="${dd}"]`)
+        ? dd
+        : (document.querySelector(`#branch-label option[value="label_${dd}"]`) ? `label_${dd}` : '');
+      if (candidate) {
+        state.branchLabel = candidate;
+        document.getElementById('branch-label').value = candidate;
+      }
+    }
+    document.getElementById('branch-label').value = state.branchLabel;
+
+    document.getElementById('empty-state').classList.add('hidden');
+    document.getElementById('export-btn').disabled = false;
+    document.getElementById('export-btn').style.opacity = '';
+    document.getElementById('export-btn').style.cursor = '';
+
+    render();
+    fitToView();
+    toast(`Loaded ${getAllTips(state.tree).length} tips from ${filename}`);
+  } catch (err) {
+    console.error(err);
+    toast(`Error: ${err.message}`, 'error');
+  }
+}
+
+function populateColorByOptions() {
+  const select = document.getElementById('color-by');
+  select.innerHTML = '<option value="">— Uniform —</option>';
+
+  const seen = new Set();
+  const options = [];
+
+  // Use Auspice meta.colorings first
+  if (state.meta && state.meta.colorings) {
+    state.meta.colorings.forEach(c => {
+      if (!seen.has(c.key)) {
+        options.push({ key: c.key, title: c.title || c.key });
+        seen.add(c.key);
+      }
+    });
+  }
+
+  // Add any other attrs found in tree
+  const allNodes = getAllNodes(state.tree);
+  const attrKeys = new Set();
+  allNodes.forEach(n => {
+    if (n.attrs) Object.keys(n.attrs).forEach(k => attrKeys.add(k));
+  });
+  attrKeys.forEach(k => {
+    if (k === 'div' || k.endsWith('_confidence')) return;
+    if (!seen.has(k)) {
+      options.push({ key: k, title: k });
+      seen.add(k);
+    }
+  });
+
+  options.forEach(opt => {
+    const el = document.createElement('option');
+    el.value = opt.key;
+    el.textContent = opt.title;
+    select.appendChild(el);
+  });
+}
+
+function populateBranchLabelOptions() {
+  const select = document.getElementById('branch-label');
+  select.innerHTML = '<option value="">— None —</option>';
+
+  // Collect attribute keys present on internal (non-tip) nodes — these are the
+  // sensible candidates for a branch label (bootstrap, mutations, clade, etc.)
+  const internalKeys = new Map(); // key -> friendly title
+  function walk(n) {
+    if (n.children && n.children.length > 0) {
+      if (n.attrs) {
+        Object.keys(n.attrs).forEach(k => {
+          if (k === 'div' || k.endsWith('_confidence')) return;
+          if (!internalKeys.has(k)) internalKeys.set(k, k);
+        });
+      }
+      n.children.forEach(walk);
+    }
+  }
+  walk(state.tree);
+
+  // Friendlier titles from Auspice meta.colorings if available
+  if (state.meta && state.meta.colorings) {
+    state.meta.colorings.forEach(c => {
+      if (internalKeys.has(c.key)) internalKeys.set(c.key, c.title || c.key);
+    });
+  }
+
+  Array.from(internalKeys.entries()).forEach(([key, title]) => {
+    const el = document.createElement('option');
+    el.value = key;
+    el.textContent = title;
+    select.appendChild(el);
+  });
+}
+
+function renderLegend() {
+  const container = document.getElementById('legend');
+  if (!state.colorScale) {
+    container.innerHTML = '';
+    return;
+  }
+
+  if (state.colorScale.type === 'continuous') {
+    const colors = [];
+    for (let i = 0; i <= 100; i += 5) {
+      colors.push(d3.interpolateViridis(i / 100));
+    }
+    container.innerHTML = `
+      <div class="legend-gradient" style="background: linear-gradient(to right, ${colors.join(',')})"></div>
+      <div class="legend-gradient-labels">
+        <span>${formatValue(state.colorScale.min)}</span>
+        <span>${formatValue(state.colorScale.max)}</span>
+      </div>
+    `;
+  } else {
+    container.innerHTML = state.colorScale.categories.map(cat => {
+      const color = state.colorScale.map[cat] || '#cccccc';
+      const isHidden = state.hiddenCategories.has(String(cat));
+      return `<div class="legend-item ${isHidden ? 'hidden' : ''}" data-cat="${escapeHtml(String(cat))}">
+        <div class="legend-swatch" style="background:${color}"></div>
+        <div class="legend-label">${escapeHtml(String(cat))}</div>
+      </div>`;
+    }).join('');
+
+    container.querySelectorAll('.legend-item').forEach(el => {
+      el.addEventListener('click', () => {
+        const cat = el.dataset.cat;
+        if (state.hiddenCategories.has(cat)) state.hiddenCategories.delete(cat);
+        else state.hiddenCategories.add(cat);
+        renderLegend();
+        render();
+      });
+    });
+  }
+}
+
+// ==========================================================================
+// SEARCH
+// ==========================================================================
+function performSearch(term) {
+  state.searchTerm = term.trim().toLowerCase();
+  state.matchedNodes = new Set();
+
+  if (!state.searchTerm || !state.tree) {
+    document.getElementById('search-count').textContent = '—';
+    render();
+    return;
+  }
+
+  const tips = getAllTips(state.tree);
+  tips.forEach(tip => {
+    if (tip.name && tip.name.toLowerCase().includes(state.searchTerm)) {
+      state.matchedNodes.add(tip._id);
+    }
+  });
+
+  document.getElementById('search-count').textContent = `${state.matchedNodes.size} / ${tips.length}`;
+  render();
+}
+
+// ==========================================================================
+// EXPORT
+// ==========================================================================
+function getSVGForExport() {
+  const svg = document.getElementById('tree-svg');
+  const clone = svg.cloneNode(true);
+
+  const container = document.getElementById('tree-container');
+  const rect = container.getBoundingClientRect();
+  clone.setAttribute('width', rect.width);
+  clone.setAttribute('height', rect.height);
+  clone.setAttribute('viewBox', `0 0 ${rect.width} ${rect.height}`);
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+
+  // Embed style block with literal colors (CSS variables don't survive serialization)
+  const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+  styleEl.textContent = `
+    .branch { fill: none; stroke: #1a2e2a; stroke-linecap: round; stroke-linejoin: round; }
+    .tip-label { fill: #1a2e2a; font-family: 'JetBrains Mono', 'Courier New', monospace; }
+    .tip-label.highlight { fill: #7c2d12; font-weight: 600; }
+    .tip-label.dimmed { opacity: 0.2; }
+    .branch-label { fill: #4a5e5a; font-family: 'JetBrains Mono', 'Courier New', monospace; }
+    .node-tip { stroke-width: 0.5; }
+    .node-internal { fill: #fbf8f1; stroke: #4a5e5a; stroke-width: 1; }
+    .node-internal.collapsed { fill: #c2410c; stroke: #7c2d12; }
+    .scale-bar line { stroke: #1a2e2a; stroke-width: 1; }
+    .scale-bar text { fill: #4a5e5a; font-family: 'JetBrains Mono', 'Courier New', monospace; font-size: 10px; }
+  `;
+  clone.insertBefore(styleEl, clone.firstChild);
+
+  // Background
+  const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  bg.setAttribute('width', '100%');
+  bg.setAttribute('height', '100%');
+  bg.setAttribute('fill', '#fbf8f1');
+  clone.insertBefore(bg, styleEl);
+
+  // Make sure branches with var(--ink) get a literal stroke
+  clone.querySelectorAll('.branch').forEach(el => {
+    const s = el.getAttribute('stroke');
+    if (!s || s.includes('var(')) el.setAttribute('stroke', '#1a2e2a');
+  });
+
+  // Title metadata
+  const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+  title.textContent = `Phylogenetic tree — ${state.filename || 'exported from Loggerhead'}`;
+  clone.insertBefore(title, bg);
+
+  return clone;
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 100);
+}
+
+function getExportFilename(ext) {
+  const base = state.filename ? state.filename.replace(/\.[^.]+$/, '') : 'loggerhead-tree';
+  return `${base}.${ext}`;
+}
+
+// Build a fresh, self-contained SVG sized to fit the WHOLE tree with EVERY
+// label legibly rendered — not a screenshot of the current viewport. The tree
+// is re-laid-out to a size proportional to the tip count, so a 1200-tip tree
+// produces a tall SVG that, when exported to PDF/PNG, lets a reader read every
+// tip name. After building, we re-call render() so the on-screen view is
+// restored to whatever the user was looking at.
+function buildFullExportSVG() {
+  if (!state.tree) return null;
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+
+  const tips = getTips(state.tree);
+  const tipCount = tips.length;
+  const longestLabel = tips.reduce((m, t) => Math.max(m, (t.name || '').length), 1);
+  const padding = 60;
+
+  // Per-tip vertical/arc allotment — generous enough for labels not to overlap.
+  const rowH = Math.max(state.labelSize * 1.45, 10);
+  const charW = state.labelSize * 0.62;   // rough monospace character width
+  const labelPx = longestLabel * charW + 20;
+
+  let exportW, exportH, innerW, innerH;
+
+  if (state.layout === 'rect') {
+    // Tree drawing area: tipCount rows tall; width sized so branches are visible
+    // without crowding the labels.
+    innerH = tipCount * rowH;
+    const treeW = Math.max(800, Math.min(innerH * 0.55, 4000));
+    innerW = treeW;
+    exportW = padding * 2 + treeW + labelPx;
+    exportH = padding * 2 + innerH;
+  } else {
+    // Radial: tips end up at varying radii based on cumDist (Divergence) or
+    // depth (Cladogram). The MINIMUM tip radius — where the densest cluster
+    // sits — drives the required canvas size. We estimate the cluster's
+    // radial position from the actual cumDist/depth distribution, then size
+    // the canvas so even that crowded inner cluster has reasonable arc room.
+    // Need to know cumDist before sizing, so populate it now.
+    computeDepths(state.tree);
+
+    const minArc = state.labelSize * 1.3;
+    let clusterFactor;
+    if (state.metric === 'cladogram') {
+      const depths = tips.map(t => t.depth || 0).sort((a, b) => a - b);
+      const maxD = depths[depths.length - 1] || 1;
+      const medianD = depths[Math.floor(depths.length / 2)] || maxD;
+      clusterFactor = Math.max(0.15, medianD / maxD);
+    } else {
+      const dists = tips.map(t => t.cumDist || 0).sort((a, b) => a - b);
+      const maxD = dists[dists.length - 1] || 1;
+      // Use the 25th percentile of tip cumDists — that's where the dense
+      // cluster lives in outlier-heavy trees. Median would be skewed by
+      // outliers; 25th gives more room to the bottom of the cluster.
+      const lowerD = dists[Math.floor(dists.length * 0.25)] || maxD;
+      clusterFactor = Math.max(0.1, lowerD / maxD);
+    }
+
+    // Required radius for the dense cluster's tips to have ≥ minArc spacing.
+    // Cap at MAX_R so we don't generate gigapixel canvases for pathological
+    // data — at that point the cluster will still overlap and the user can
+    // zoom the SVG/PDF in a vector viewer.
+    const MAX_R = 5000;
+    const idealRadius = (tipCount * minArc) / (2 * Math.PI * clusterFactor);
+    const radius = Math.max(300, Math.min(idealRadius, MAX_R));
+    const totalR = radius + labelPx + 40;
+    exportW = exportH = totalR * 2 + padding * 2;
+    innerW = exportW;
+    innerH = exportH;
+  }
+
+  // Save the current screen-layout state, run layout at export size.
+  const saved = {
+    cx: state.cx, cy: state.cy,
+    maxRadius: state.maxRadius, maxDist: state.maxDist,
+    tipSpacing: state.tipSpacing
+  };
+  if (state.layout === 'rect') {
+    layoutRectangular(state.tree, innerW, innerH);
+  } else {
+    layoutRadial(state.tree, exportW, exportH);
+  }
+
+  // Build a clean detached SVG
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('xmlns', SVG_NS);
+  svg.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+  svg.setAttribute('width', exportW);
+  svg.setAttribute('height', exportH);
+  svg.setAttribute('viewBox', `0 0 ${exportW} ${exportH}`);
+
+  const title = document.createElementNS(SVG_NS, 'title');
+  title.textContent = `Phylogenetic tree — ${state.filename || 'exported from Loggerhead'}`;
+  svg.appendChild(title);
+
+  const styleEl = document.createElementNS(SVG_NS, 'style');
+  styleEl.textContent = `
+    .branch { fill: none; stroke: #1a2e2a; stroke-linecap: round; stroke-linejoin: round; }
+    .tip-label { fill: #1a2e2a; font-family: 'JetBrains Mono', 'Courier New', monospace; dominant-baseline: middle; }
+    .branch-label { fill: #4a5e5a; font-family: 'JetBrains Mono', 'Courier New', monospace; dominant-baseline: alphabetic; }
+    .node-tip { stroke-width: 0.5; }
+    .node-internal { fill: #fbf8f1; stroke: #4a5e5a; stroke-width: 1; }
+    .node-internal.collapsed { fill: #c2410c; stroke: #7c2d12; }
+    .scale-bar line { stroke: #1a2e2a; stroke-width: 1; }
+    .scale-bar text { fill: #4a5e5a; font-family: 'JetBrains Mono', 'Courier New', monospace; font-size: 10px; }
+  `;
+  svg.appendChild(styleEl);
+
+  const bg = document.createElementNS(SVG_NS, 'rect');
+  bg.setAttribute('width', '100%');
+  bg.setAttribute('height', '100%');
+  bg.setAttribute('fill', '#fbf8f1');
+  svg.appendChild(bg);
+
+  const gRoot = document.createElementNS(SVG_NS, 'g');
+  const offsetX = state.layout === 'rect' ? padding : 0;
+  const offsetY = state.layout === 'rect' ? padding : 0;
+  gRoot.setAttribute('transform', `translate(${offsetX}, ${offsetY})`);
+  svg.appendChild(gRoot);
+
+  // Re-establish parent references for branch drawing
+  (function assignParents(node, parent) {
+    node._parent = parent || null;
+    if (node.children) {
+      const cs = node.collapsed ? [] : node.children;
+      cs.forEach(c => assignParents(c, node));
+    }
+  })(state.tree, null);
+
+  const visibleNodes = getDescendants(state.tree);
+
+  // --- branches ---
+  const branchesG = document.createElementNS(SVG_NS, 'g');
+  branchesG.setAttribute('class', 'branches');
+  gRoot.appendChild(branchesG);
+  visibleNodes.forEach(node => {
+    if (!node._parent) return;
+    let pathD;
+    if (state.layout === 'rect') {
+      pathD = `M${node._parent.x},${node._parent.y} V${node.y} H${node.x}`;
+    } else {
+      const px = state.cx + node._parent.r * Math.cos(node.angle - Math.PI / 2);
+      const py = state.cy + node._parent.r * Math.sin(node.angle - Math.PI / 2);
+      const startAngle = node._parent.angle - Math.PI / 2;
+      const endAngle = node.angle - Math.PI / 2;
+      const largeArc = Math.abs(endAngle - startAngle) > Math.PI ? 1 : 0;
+      const sweepFlag = endAngle > startAngle ? 1 : 0;
+      const arcD = node._parent.r > 0
+        ? `M${node._parent.x},${node._parent.y} A${node._parent.r},${node._parent.r} 0 ${largeArc} ${sweepFlag} ${px},${py}`
+        : `M${node._parent.x},${node._parent.y}`;
+      pathD = `${arcD} L${node.x},${node.y}`;
+    }
+    const p = document.createElementNS(SVG_NS, 'path');
+    p.setAttribute('class', 'branch');
+    p.setAttribute('d', pathD);
+    p.setAttribute('stroke', nodeColor(node));
+    p.setAttribute('stroke-width', state.branchWidth);
+    branchesG.appendChild(p);
+  });
+
+  // --- branch labels (optional) ---
+  if (state.branchLabel) {
+    const blG = document.createElementNS(SVG_NS, 'g');
+    blG.setAttribute('class', 'branch-labels');
+    gRoot.appendChild(blG);
+    const bSize = Math.max(state.labelSize - 1.5, 6);
+    visibleNodes.forEach(node => {
+      if (!node._parent) return;
+      if (!node.children || node.children.length === 0) return;
+      const val = node.attrs && node.attrs[state.branchLabel];
+      if (val === undefined || val === null || val === '') return;
+      const t = document.createElementNS(SVG_NS, 'text');
+      t.setAttribute('class', 'branch-label');
+      t.setAttribute('font-size', bSize);
+      t.setAttribute('text-anchor', 'middle');
+      if (state.layout === 'rect') {
+        t.setAttribute('x', (node._parent.x + node.x) / 2);
+        t.setAttribute('y', node.y - 3);
+      } else {
+        const mr = (node._parent.r + node.r) / 2;
+        const mx = state.cx + mr * Math.cos(node.angle - Math.PI / 2);
+        const my = state.cy + mr * Math.sin(node.angle - Math.PI / 2);
+        const angleDeg = (node.angle * 180 / Math.PI) - 90;
+        const flip = node.angle > Math.PI / 2 && node.angle < 3 * Math.PI / 2;
+        const rotate = flip ? angleDeg + 180 : angleDeg;
+        t.setAttribute('x', mx);
+        t.setAttribute('y', my - 3);
+        t.setAttribute('transform', `rotate(${rotate}, ${mx}, ${my})`);
+      }
+      t.textContent = formatValue(val);
+      blG.appendChild(t);
+    });
+  }
+
+  // --- internal nodes (optional) ---
+  if (state.showInternal) {
+    const intG = document.createElementNS(SVG_NS, 'g');
+    intG.setAttribute('class', 'internals');
+    gRoot.appendChild(intG);
+    visibleNodes.forEach(node => {
+      if (!node.children || node.children.length === 0) return;
+      const c = document.createElementNS(SVG_NS, 'circle');
+      c.setAttribute('class', 'node-internal' + (node.collapsed ? ' collapsed' : ''));
+      c.setAttribute('cx', node.x);
+      c.setAttribute('cy', node.y);
+      c.setAttribute('r', node.collapsed ? state.tipSize : 2.5);
+      if (node.collapsed) c.setAttribute('fill', nodeColor(node));
+      intG.appendChild(c);
+    });
+  }
+
+  // --- tip circles + labels (ALWAYS all of them) ---
+  const tipsG = document.createElementNS(SVG_NS, 'g');
+  tipsG.setAttribute('class', 'tips');
+  gRoot.appendChild(tipsG);
+  tips.forEach(tip => {
+    if (state.showTips) {
+      const c = document.createElementNS(SVG_NS, 'circle');
+      c.setAttribute('class', 'node-tip');
+      c.setAttribute('cx', tip.x);
+      c.setAttribute('cy', tip.y);
+      c.setAttribute('r', state.tipSize);
+      const fill = nodeColor(tip);
+      c.setAttribute('fill', fill);
+      const stroke = d3.color(fill);
+      c.setAttribute('stroke', stroke ? stroke.darker(0.5).toString() : '#000');
+      tipsG.appendChild(c);
+    }
+    if (state.showTipLabels) {
+      const t = document.createElementNS(SVG_NS, 'text');
+      t.setAttribute('class', 'tip-label');
+      t.setAttribute('font-size', state.labelSize);
+      if (state.layout === 'rect') {
+        t.setAttribute('x', tip.x + state.tipSize + 3);
+        t.setAttribute('y', tip.y);
+      } else {
+        const angleDeg = (tip.angle * 180 / Math.PI) - 90;
+        const flip = (tip.angle > Math.PI / 2 && tip.angle < 3 * Math.PI / 2);
+        const rotate = flip ? angleDeg + 180 : angleDeg;
+        const offsetR = state.tipSize + 4;
+        const lx = state.cx + (tip.r + offsetR) * Math.cos(tip.angle - Math.PI / 2);
+        const ly = state.cy + (tip.r + offsetR) * Math.sin(tip.angle - Math.PI / 2);
+        t.setAttribute('x', lx);
+        t.setAttribute('y', ly);
+        t.setAttribute('text-anchor', flip ? 'end' : 'start');
+        t.setAttribute('transform', `rotate(${rotate}, ${lx}, ${ly})`);
+      }
+      t.textContent = tip.name;
+      tipsG.appendChild(t);
+    }
+  });
+
+  // --- scale bar (rectangular, divergence) ---
+  if (state.showScale && state.maxDist > 0 && state.metric !== 'cladogram' && state.layout === 'rect') {
+    const targetPx = innerW / 4;
+    const targetDist = (targetPx / innerW) * state.maxDist;
+    const mag = Math.pow(10, Math.floor(Math.log10(targetDist)));
+    const niceVals = [1, 2, 5, 10];
+    const distWidth = niceVals.map(v => v * mag).reduce((a, b) =>
+      Math.abs(b - targetDist) < Math.abs(a - targetDist) ? b : a);
+    const pixelWidth = (distWidth / state.maxDist) * innerW;
+
+    const sbG = document.createElementNS(SVG_NS, 'g');
+    sbG.setAttribute('class', 'scale-bar');
+    sbG.setAttribute('transform', `translate(${padding}, ${exportH - 30})`);
+    svg.appendChild(sbG);
+
+    const mkLine = (x1, y1, x2, y2) => {
+      const l = document.createElementNS(SVG_NS, 'line');
+      l.setAttribute('x1', x1); l.setAttribute('y1', y1);
+      l.setAttribute('x2', x2); l.setAttribute('y2', y2);
+      return l;
+    };
+    sbG.appendChild(mkLine(0, 0, pixelWidth, 0));
+    sbG.appendChild(mkLine(0, -3, 0, 3));
+    sbG.appendChild(mkLine(pixelWidth, -3, pixelWidth, 3));
+    const lbl = document.createElementNS(SVG_NS, 'text');
+    lbl.setAttribute('x', pixelWidth / 2);
+    lbl.setAttribute('y', -6);
+    lbl.setAttribute('text-anchor', 'middle');
+    lbl.textContent = distWidth < 0.001 ? distWidth.toExponential(1)
+                    : distWidth < 1 ? distWidth.toPrecision(2)
+                    : distWidth.toString();
+    sbG.appendChild(lbl);
+  }
+
+  // Restore on-screen layout (just re-render from the live state)
+  setTimeout(() => render(), 0);
+
+  return { svg, width: exportW, height: exportH };
+}
+
+function exportSVG() {
+  const result = buildFullExportSVG();
+  if (!result) return toast('Nothing to export', 'error');
+  const serializer = new XMLSerializer();
+  const str = '<?xml version="1.0" encoding="UTF-8"?>\n' + serializer.serializeToString(result.svg);
+  const blob = new Blob([str], { type: 'image/svg+xml;charset=utf-8' });
+  downloadBlob(blob, getExportFilename('svg'));
+  toast('Exported full-size SVG');
+}
+
+function exportRaster(format) {
+  const result = buildFullExportSVG();
+  if (!result) return toast('Nothing to export', 'error');
+  const { svg, width, height } = result;
+
+  // Scale: 2× for raster sharpness, but cap so we don't generate gigabyte PNGs
+  // for very tall trees.
+  const MAX_PIXELS = 60_000_000;
+  const aspect = width / height;
+  let scale = 2;
+  while (width * scale * height * scale > MAX_PIXELS && scale > 1) scale -= 0.25;
+  const w = Math.round(width * scale);
+  const h = Math.round(height * scale);
+
+  const serializer = new XMLSerializer();
+  const str = serializer.serializeToString(svg);
+  const svgBlob = new Blob([str], { type: 'image/svg+xml;charset=utf-8' });
+  const url = URL.createObjectURL(svgBlob);
+
+  const img = new Image();
+  img.onload = function() {
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fbf8f1';
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
+    URL.revokeObjectURL(url);
+
+    if (format === 'pdf') {
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({
+        orientation: w > h ? 'l' : 'p',
+        unit: 'pt',
+        format: [w / scale, h / scale]
+      });
+      pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, w / scale, h / scale);
+      pdf.save(getExportFilename('pdf'));
+      toast(`Exported full-size PDF (${Math.round(w/scale)}×${Math.round(h/scale)}pt)`);
+    } else {
+      const mime = format === 'jpg' ? 'image/jpeg' : 'image/png';
+      canvas.toBlob(blob => {
+        downloadBlob(blob, getExportFilename(format));
+        toast(`Exported full-size ${format.toUpperCase()} (${w}×${h}px)`);
+      }, mime, format === 'jpg' ? 0.92 : undefined);
+    }
+  };
+  img.onerror = (e) => {
+    console.error('Export error', e);
+    toast('Export failed', 'error');
+  };
+  img.src = url;
+}
+
+function toast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = type === 'error' ? '#7c2d12' : '';
+  t.classList.add('show');
+  clearTimeout(t._timeout);
+  t._timeout = setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+// ==========================================================================
+// DEMO DATA — a small Auspice JSON v2 example
+// ==========================================================================
+const DEMO_AUSPICE = {
+  "version": "v2",
+  "meta": {
+    "title": "Demo phylogeny — SARS-CoV-2 variants",
+    "updated": "2024-08-15",
+    "display_defaults": { "color_by": "clade", "branch_label": "clade" },
+    "colorings": [
+      { "key": "clade", "title": "Clade", "type": "categorical" },
+      { "key": "country", "title": "Country", "type": "categorical" },
+      { "key": "num_date", "title": "Date", "type": "continuous" }
+    ]
+  },
+  "tree": {
+    "name": "root",
+    "node_attrs": { "div": 0, "num_date": { "value": 2019.95 }, "clade": { "value": "19A" }, "country": { "value": "China" } },
+    "children": [
+      {
+        "name": "node_19B",
+        "node_attrs": { "div": 0.0001, "num_date": { "value": 2020.05 }, "clade": { "value": "19B" }, "country": { "value": "China" } },
+        "children": [
+          { "name": "Wuhan/2019", "node_attrs": { "div": 0.00012, "num_date": { "value": 2019.99 }, "clade": { "value": "19B" }, "country": { "value": "China" } } },
+          { "name": "Beijing/2020-A", "node_attrs": { "div": 0.00018, "num_date": { "value": 2020.12 }, "clade": { "value": "19B" }, "country": { "value": "China" } } },
+          { "name": "Shanghai/2020", "node_attrs": { "div": 0.00021, "num_date": { "value": 2020.18 }, "clade": { "value": "19B" }, "country": { "value": "China" } } }
+        ]
+      },
+      {
+        "name": "node_20A",
+        "node_attrs": { "div": 0.00015, "num_date": { "value": 2020.15 }, "clade": { "value": "20A" }, "country": { "value": "Italy" } },
+        "children": [
+          {
+            "name": "node_20B",
+            "node_attrs": { "div": 0.00028, "num_date": { "value": 2020.25 }, "clade": { "value": "20B" }, "country": { "value": "Italy" } },
+            "children": [
+              { "name": "Milan/2020", "node_attrs": { "div": 0.00032, "num_date": { "value": 2020.28 }, "clade": { "value": "20B" }, "country": { "value": "Italy" } } },
+              { "name": "Madrid/2020", "node_attrs": { "div": 0.00035, "num_date": { "value": 2020.31 }, "clade": { "value": "20B" }, "country": { "value": "Spain" } } },
+              { "name": "London/2020", "node_attrs": { "div": 0.00038, "num_date": { "value": 2020.35 }, "clade": { "value": "20B" }, "country": { "value": "UK" } } },
+              { "name": "Paris/2020", "node_attrs": { "div": 0.00041, "num_date": { "value": 2020.38 }, "clade": { "value": "20B" }, "country": { "value": "France" } } }
+            ]
+          },
+          {
+            "name": "node_20C",
+            "node_attrs": { "div": 0.00029, "num_date": { "value": 2020.28 }, "clade": { "value": "20C" }, "country": { "value": "USA" } },
+            "children": [
+              { "name": "NewYork/2020", "node_attrs": { "div": 0.00033, "num_date": { "value": 2020.31 }, "clade": { "value": "20C" }, "country": { "value": "USA" } } },
+              { "name": "California/2020", "node_attrs": { "div": 0.00036, "num_date": { "value": 2020.34 }, "clade": { "value": "20C" }, "country": { "value": "USA" } } },
+              { "name": "Washington/2020", "node_attrs": { "div": 0.00039, "num_date": { "value": 2020.37 }, "clade": { "value": "20C" }, "country": { "value": "USA" } } }
+            ]
+          },
+          {
+            "name": "node_Alpha",
+            "node_attrs": { "div": 0.00055, "num_date": { "value": 2020.85 }, "clade": { "value": "Alpha (B.1.1.7)" }, "country": { "value": "UK" } },
+            "children": [
+              { "name": "Alpha/Kent-1", "node_attrs": { "div": 0.00062, "num_date": { "value": 2020.92 }, "clade": { "value": "Alpha (B.1.1.7)" }, "country": { "value": "UK" } } },
+              { "name": "Alpha/Florida-2", "node_attrs": { "div": 0.00068, "num_date": { "value": 2021.05 }, "clade": { "value": "Alpha (B.1.1.7)" }, "country": { "value": "USA" } } },
+              { "name": "Alpha/Lisbon", "node_attrs": { "div": 0.00071, "num_date": { "value": 2021.12 }, "clade": { "value": "Alpha (B.1.1.7)" }, "country": { "value": "Portugal" } } }
+            ]
+          },
+          {
+            "name": "node_Delta",
+            "node_attrs": { "div": 0.00078, "num_date": { "value": 2021.25 }, "clade": { "value": "Delta (B.1.617.2)" }, "country": { "value": "India" } },
+            "children": [
+              { "name": "Delta/Mumbai-1", "node_attrs": { "div": 0.00084, "num_date": { "value": 2021.31 }, "clade": { "value": "Delta (B.1.617.2)" }, "country": { "value": "India" } } },
+              { "name": "Delta/Delhi-2", "node_attrs": { "div": 0.00088, "num_date": { "value": 2021.35 }, "clade": { "value": "Delta (B.1.617.2)" }, "country": { "value": "India" } } },
+              { "name": "Delta/Texas", "node_attrs": { "div": 0.00094, "num_date": { "value": 2021.55 }, "clade": { "value": "Delta (B.1.617.2)" }, "country": { "value": "USA" } } },
+              { "name": "Delta/Sydney", "node_attrs": { "div": 0.00098, "num_date": { "value": 2021.61 }, "clade": { "value": "Delta (B.1.617.2)" }, "country": { "value": "Australia" } } }
+            ]
+          },
+          {
+            "name": "node_Omicron",
+            "node_attrs": { "div": 0.00115, "num_date": { "value": 2021.92 }, "clade": { "value": "Omicron (BA.1)" }, "country": { "value": "South Africa" } },
+            "children": [
+              { "name": "Omicron/Gauteng", "node_attrs": { "div": 0.00122, "num_date": { "value": 2021.95 }, "clade": { "value": "Omicron (BA.1)" }, "country": { "value": "South Africa" } } },
+              { "name": "Omicron/Botswana", "node_attrs": { "div": 0.00125, "num_date": { "value": 2021.98 }, "clade": { "value": "Omicron (BA.1)" }, "country": { "value": "Botswana" } } },
+              { "name": "Omicron/Toronto", "node_attrs": { "div": 0.00132, "num_date": { "value": 2022.05 }, "clade": { "value": "Omicron (BA.1)" }, "country": { "value": "Canada" } } },
+              { "name": "Omicron/Berlin", "node_attrs": { "div": 0.00135, "num_date": { "value": 2022.08 }, "clade": { "value": "Omicron (BA.1)" }, "country": { "value": "Germany" } } },
+              { "name": "Omicron/Tokyo", "node_attrs": { "div": 0.00138, "num_date": { "value": 2022.12 }, "clade": { "value": "Omicron (BA.1)" }, "country": { "value": "Japan" } } },
+              { "name": "Omicron/Singapore", "node_attrs": { "div": 0.00141, "num_date": { "value": 2022.15 }, "clade": { "value": "Omicron (BA.1)" }, "country": { "value": "Singapore" } } }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+};
+
+// ==========================================================================
+// EVENT HANDLERS
+// ==========================================================================
+function setupEventHandlers() {
+  // File loading
+  document.getElementById('load-btn').addEventListener('click', () => {
+    document.getElementById('file-input').click();
+  });
+
+  document.getElementById('file-input').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => loadTree(reader.result, file.name);
+    reader.onerror = () => toast('Failed to read file', 'error');
+    reader.readAsText(file);
+  });
+
+  document.getElementById('demo-btn').addEventListener('click', () => {
+    loadTree(JSON.stringify(DEMO_AUSPICE), 'demo-sars-cov-2.json');
+  });
+
+  // Drag-and-drop
+  const body = document.body;
+  let dragCounter = 0;
+  body.addEventListener('dragenter', (e) => {
+    if (!e.dataTransfer || !e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault();
+    dragCounter++;
+    body.classList.add('dragging');
+  });
+  body.addEventListener('dragleave', () => {
+    dragCounter--;
+    if (dragCounter <= 0) {
+      dragCounter = 0;
+      body.classList.remove('dragging');
+    }
+  });
+  body.addEventListener('dragover', (e) => {
+    if (e.dataTransfer && e.dataTransfer.types.includes('Files')) e.preventDefault();
+  });
+  body.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dragCounter = 0;
+    body.classList.remove('dragging');
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => loadTree(reader.result, file.name);
+    reader.readAsText(file);
+  });
+
+  // Export menu
+  const exportBtn = document.getElementById('export-btn');
+  const exportMenu = document.getElementById('export-menu');
+  exportBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (exportBtn.disabled) return;
+    exportMenu.classList.toggle('open');
+  });
+  document.addEventListener('click', (e) => {
+    if (!exportMenu.contains(e.target)) exportMenu.classList.remove('open');
+  });
+  exportMenu.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const fmt = btn.dataset.format;
+      exportMenu.classList.remove('open');
+      if (fmt === 'svg') exportSVG();
+      else exportRaster(fmt);
+    });
+  });
+
+  // Layout / metric radios
+  document.querySelectorAll('input[name="layout"]').forEach(el => {
+    el.addEventListener('change', () => {
+      state.layout = el.value;
+      if (state.tree) {
+        currentTransform = d3.zoomIdentity;
+        d3.select('#tree-svg').call(zoomBehavior.transform, d3.zoomIdentity);
+        render();
+      }
+    });
+  });
+  document.querySelectorAll('input[name="metric"]').forEach(el => {
+    el.addEventListener('change', () => {
+      state.metric = el.value;
+      if (state.tree) render();
+    });
+  });
+
+  // Color by
+  document.getElementById('color-by').addEventListener('change', (e) => {
+    state.colorBy = e.target.value;
+    state.hiddenCategories = new Set();
+    buildColorScale(state.colorBy);
+    renderLegend();
+    render();
+  });
+
+  // Branch label
+  document.getElementById('branch-label').addEventListener('change', (e) => {
+    state.branchLabel = e.target.value;
+    if (state.tree) render();
+  });
+
+  // Display toggles
+  const toggleMap = {
+    'show-tip-labels': 'showTipLabels',
+    'show-tips': 'showTips',
+    'show-internal': 'showInternal',
+    'show-scale': 'showScale'
+  };
+  Object.entries(toggleMap).forEach(([id, prop]) => {
+    document.getElementById(id).addEventListener('change', (e) => {
+      state[prop] = e.target.checked;
+      if (state.tree) render();
+    });
+  });
+
+  // Sliders
+  document.getElementById('branch-width').addEventListener('input', (e) => {
+    state.branchWidth = +e.target.value;
+    if (state.tree) render();
+  });
+  document.getElementById('label-size').addEventListener('input', (e) => {
+    state.labelSize = +e.target.value;
+    if (state.tree) render();
+  });
+  document.getElementById('tip-size').addEventListener('input', (e) => {
+    state.tipSize = +e.target.value;
+    if (state.tree) render();
+  });
+
+  // Search
+  let searchTimer;
+  document.getElementById('search').addEventListener('input', (e) => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => performSearch(e.target.value), 200);
+  });
+
+  // Zoom buttons
+  document.getElementById('zoom-in').addEventListener('click', () => {
+    d3.select('#tree-svg').transition().duration(200).call(zoomBehavior.scaleBy, 1.4);
+  });
+  document.getElementById('zoom-out').addEventListener('click', () => {
+    d3.select('#tree-svg').transition().duration(200).call(zoomBehavior.scaleBy, 1 / 1.4);
+  });
+  document.getElementById('zoom-fit').addEventListener('click', fitToView);
+
+  // Window resize
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { if (state.tree) render(); }, 150);
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT') return;
+    if (e.key === 'f' || e.key === 'F') { e.preventDefault(); fitToView(); }
+    if (e.key === '/' && state.tree) {
+      e.preventDefault();
+      document.getElementById('search').focus();
+    }
+    if ((e.metaKey || e.ctrlKey) && e.key === 's' && state.tree) {
+      e.preventDefault();
+      exportSVG();
+    }
+  });
+}
+
+// ==========================================================================
+// INIT
+// ==========================================================================
+document.addEventListener('DOMContentLoaded', () => {
+  setupZoom();
+  setupEventHandlers();
+});
+</script>
+</body>
+</html>
