@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reef — a genome visualization toolkit for public health</title>
+<meta name="description" content="Reef is two browser-based tools for visualizing pathogen genomes: phylogenetic trees (Loggerhead) and transmission networks (Calusa). Runs locally, no data uploaded.">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 28' fill='none' stroke='%231a2e2a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M16 27 V19'/><path d='M16 21 C 12 19, 10 16, 10 11'/><path d='M16 21 C 20 19, 22 16, 22 11'/><path d='M16 19 V10'/><circle cx='10' cy='11' r='1.2' fill='%231a2e2a' stroke='none'/><circle cx='22' cy='11' r='1.2' fill='%231a2e2a' stroke='none'/><circle cx='16' cy='10' r='1.2' fill='%231a2e2a' stroke='none'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Geist:wght@300..700&family=JetBrains+Mono:wght@300..600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f6f1e7;
+  --bg-panel: #fbf8f1;
+  --bg-elevated: #ffffff;
+  --ink: #1a2e2a;
+  --ink-soft: #4a5e5a;
+  --ink-faint: #8a9a96;
+  --rule: #d8d0bf;
+  --rule-soft: #e7e0d0;
+  --accent: #c2410c;
+  --accent-dark: #7c2d12;
+  --tree: #166534;     /* Loggerhead — clades / evolution */
+  --net: #1e40af;      /* Calusa — transmission links */
+  --shadow: 0 1px 2px rgba(26,46,42,0.04), 0 6px 22px rgba(26,46,42,0.07);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: 'Geist', -apple-system, sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--ink);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  position: relative;
+}
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: radial-gradient(circle, rgba(26,46,42,0.04) 1px, transparent 1px);
+  background-size: 24px 24px;
+  pointer-events: none; z-index: 0;
+}
+.wrap { position: relative; z-index: 1; max-width: 980px; margin: 0 auto; padding: 0 24px; }
+
+/* eyebrow / mono labels */
+.eyebrow {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--ink-faint);
+}
+.eyebrow .dot::before { content: '·'; margin: 0 8px; color: var(--accent); }
+
+/* ── Masthead ───────────────────────────────────────── */
+header.masthead {
+  border-bottom: 1px solid var(--rule);
+  background: var(--bg-panel);
+}
+.masthead-inner {
+  display: flex; align-items: center; gap: 14px;
+  height: 60px;
+}
+.mark { width: 30px; height: 26px; color: var(--ink); flex-shrink: 0; }
+.masthead .name {
+  font-family: 'Fraunces', serif; font-style: italic; font-weight: 500;
+  font-size: 19px; letter-spacing: -0.01em;
+}
+.suite-tag {
+  font-family: 'JetBrains Mono', monospace; font-size: 10px;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-faint);
+  padding-top: 3px;
+}
+.suite-tag::before { content: '·'; margin-right: 8px; color: var(--accent); }
+@media (max-width: 560px) { .suite-tag { display: none; } }
+.masthead .org { margin-left: auto; }
+.masthead .org a {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  letter-spacing: 0.08em; color: var(--ink-soft); text-decoration: none;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.masthead .org a:hover { color: var(--accent-dark); }
+.masthead .org svg { width: 14px; height: 14px; }
+
+/* ── Hero ───────────────────────────────────────────── */
+.hero { padding: 76px 0 56px; }
+.hero .eyebrow { margin-bottom: 22px; }
+.hero h1 {
+  font-family: 'Fraunces', serif; font-weight: 400;
+  font-size: clamp(34px, 6vw, 58px); line-height: 1.04;
+  letter-spacing: -0.02em; max-width: 16ch;
+}
+.hero h1 em { font-style: italic; color: var(--accent); }
+.hero p.lede {
+  margin-top: 24px; max-width: 56ch;
+  font-size: 17px; color: var(--ink-soft);
+}
+.hero p.lede b { color: var(--ink); font-weight: 500; }
+
+/* ── Specimen plates ────────────────────────────────── */
+.plates {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+  padding-bottom: 12px;
+}
+.plate {
+  --tint: var(--tree);
+  background: var(--bg-panel);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.plate:hover {
+  transform: translateY(-3px);
+  border-color: var(--tint);
+  box-shadow: 0 2px 4px rgba(26,46,42,0.05), 0 14px 34px rgba(26,46,42,0.11);
+}
+.plate.net { --tint: var(--net); }
+
+.plate-figure {
+  position: relative;
+  height: 156px;
+  display: grid; place-items: center;
+  background:
+    linear-gradient(0deg, rgba(255,255,255,0.55), rgba(255,255,255,0.55)),
+    repeating-linear-gradient(0deg, transparent 0 13px, rgba(26,46,42,0.045) 13px 14px),
+    repeating-linear-gradient(90deg, transparent 0 13px, rgba(26,46,42,0.045) 13px 14px);
+  border-bottom: 1px solid var(--rule-soft);
+}
+.plate-figure svg { width: 76px; height: 66px; color: var(--ink); }
+.plate-cat {
+  position: absolute; top: 12px; left: 14px;
+  font-family: 'JetBrains Mono', monospace; font-size: 9.5px;
+  letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint);
+}
+.plate-cat b { color: var(--tint); font-weight: 600; }
+
+.plate-body { padding: 22px 22px 24px; display: flex; flex-direction: column; flex: 1; }
+.plate h2 {
+  font-family: 'Fraunces', serif; font-style: italic; font-weight: 500;
+  font-size: 30px; letter-spacing: -0.01em; line-height: 1;
+}
+.plate .role {
+  margin-top: 6px; font-size: 14.5px; color: var(--ink-soft);
+}
+
+.spec { margin: 18px 0 6px; border-top: 1px dashed var(--rule); }
+.spec div {
+  display: flex; gap: 12px; padding: 7px 0;
+  border-bottom: 1px dashed var(--rule-soft);
+  font-size: 13px;
+}
+.spec dt {
+  flex: 0 0 76px;
+  font-family: 'JetBrains Mono', monospace; font-size: 9.5px;
+  text-transform: uppercase; letter-spacing: 0.12em; color: var(--ink-faint);
+  padding-top: 2px;
+}
+.spec dd { color: var(--ink); }
+
+.plate-actions { margin-top: auto; padding-top: 20px; display: flex; gap: 8px; align-items: center; }
+.btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 9px 15px;
+  font-family: inherit; font-size: 13.5px; font-weight: 500;
+  border-radius: 5px; cursor: pointer; text-decoration: none;
+  transition: all 0.15s ease; white-space: nowrap;
+}
+.btn svg { width: 14px; height: 14px; }
+.btn-open {
+  background: var(--tint); color: #fff; border: 1px solid var(--tint);
+}
+.btn-open:hover { filter: brightness(0.9); }
+.btn-src {
+  background: transparent; color: var(--ink); border: 1px solid var(--rule);
+}
+.btn-src:hover { border-color: var(--ink-soft); background: var(--bg-elevated); }
+.named {
+  margin-top: 16px;
+  font-family: 'JetBrains Mono', monospace; font-size: 10px;
+  letter-spacing: 0.04em; color: var(--ink-faint); line-height: 1.5;
+}
+
+/* ── Privacy band ───────────────────────────────────── */
+.band {
+  margin: 56px 0;
+  background: var(--ink); color: var(--bg-panel);
+  border-radius: 8px; padding: 40px 38px;
+}
+.band .eyebrow { color: rgba(246,241,231,0.55); margin-bottom: 16px; }
+.band .eyebrow .dot::before { color: var(--accent); }
+.band h3 {
+  font-family: 'Fraunces', serif; font-weight: 400;
+  font-size: clamp(22px, 3.4vw, 30px); line-height: 1.12; max-width: 20ch;
+}
+.band p {
+  margin-top: 16px; max-width: 62ch;
+  color: rgba(246,241,231,0.78); font-size: 15px;
+}
+.band p b { color: #fff; font-weight: 500; }
+
+/* ── Cite ───────────────────────────────────────────── */
+.cite { padding-bottom: 16px; }
+.cite .eyebrow { margin-bottom: 14px; }
+.cite h3 {
+  font-family: 'Fraunces', serif; font-style: italic; font-weight: 400; font-size: 22px;
+  margin-bottom: 14px;
+}
+.cite pre {
+  font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.7;
+  color: var(--ink-soft);
+  background: var(--bg-panel); border: 1px solid var(--rule);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px; padding: 16px 18px;
+  white-space: pre-wrap; word-break: break-word;
+}
+.cite pre .ph { color: var(--accent-dark); }
+
+/* ── Footer ─────────────────────────────────────────── */
+footer {
+  margin-top: 56px; border-top: 1px solid var(--rule); background: var(--bg-panel);
+}
+.footer-inner {
+  display: flex; flex-wrap: wrap; gap: 12px 28px; align-items: center;
+  padding: 22px 0; font-size: 12.5px; color: var(--ink-soft);
+}
+.footer-inner a { color: var(--ink-soft); text-decoration: none; border-bottom: 1px solid var(--rule); }
+.footer-inner a:hover { color: var(--accent-dark); border-color: var(--accent); }
+.footer-inner .sep { color: var(--ink-faint); }
+.footer-inner .right { margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 10.5px; letter-spacing: 0.1em; color: var(--ink-faint); }
+
+/* ── Entrance + responsive ──────────────────────────── */
+.rise { opacity: 0; transform: translateY(14px); animation: rise 0.6s cubic-bezier(0.2,0.7,0.2,1) forwards; }
+.rise.d1 { animation-delay: 0.06s; }
+.rise.d2 { animation-delay: 0.14s; }
+.rise.d3 { animation-delay: 0.22s; }
+@keyframes rise { to { opacity: 1; transform: none; } }
+
+@media (max-width: 760px) {
+  .plates { grid-template-columns: 1fr; }
+  .hero { padding: 52px 0 40px; }
+  .band { padding: 30px 24px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .rise { animation: none; opacity: 1; transform: none; }
+  .plate { transition: none; }
+}
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- ══ Masthead ════════════════════════════════════════ -->
+<header class="masthead">
+  <div class="wrap masthead-inner">
+    <svg class="mark" viewBox="0 0 32 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M16 27 V19"/>
+      <path d="M16 21 C 12 19, 10 16, 10 11"/>
+      <path d="M16 21 C 20 19, 22 16, 22 11"/>
+      <path d="M16 19 V10"/>
+      <path d="M10 13 C 8 12, 7 13, 7 16" stroke-width="1.3"/>
+      <path d="M22 13 C 24 12, 25 13, 25 16" stroke-width="1.3"/>
+      <path d="M16 13 C 14 12, 13.5 11, 13 9" stroke-width="1.3"/>
+      <path d="M16 13 C 18 12, 18.5 11, 19 9" stroke-width="1.3"/>
+      <circle cx="10" cy="11" r="1.1" fill="currentColor" stroke="none"/>
+      <circle cx="22" cy="11" r="1.1" fill="currentColor" stroke="none"/>
+      <circle cx="16" cy="10" r="1.1" fill="currentColor" stroke="none"/>
+      <circle cx="13" cy="9" r="1" fill="currentColor" stroke="none"/>
+      <circle cx="19" cy="9" r="1" fill="currentColor" stroke="none"/>
+      <circle cx="7" cy="16" r="1" fill="currentColor" stroke="none"/>
+      <circle cx="25" cy="16" r="1" fill="currentColor" stroke="none"/>
+    </svg>
+    <span class="name">Reef</span>
+    <span class="suite-tag">Genome visualization toolkit</span>
+    <span class="org">
+      <!-- UPDATE: point to your GitHub organization -->
+      <a href="https://github.com/BPHL-Molecular/Reef" target="_blank" rel="noopener">
+        <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+        BPHL&#8209;Molecular
+      </a>
+    </span>
+  </div>
+</header>
+
+<!-- ══ Hero ════════════════════════════════════════════ -->
+<section class="wrap hero">
+  <div class="eyebrow rise">The Reef toolkit<span class="dot"></span>Public health genomics</div>
+  <h1 class="rise d1">Two ways to see how a pathogen <em>moves.</em></h1>
+  <p class="lede rise d2">A genome carries two readable traces of an outbreak: a <b>lineage</b> you can draw as a tree, and a web of <b>close genetic matches</b> you can draw as a network. Reef renders both — Loggerhead for the tree, Calusa for the network — in your browser, from your own sequence data.</p>
+</section>
+
+<!-- ══ Specimen plates ═════════════════════════════════ -->
+<section class="wrap plates">
+
+  <!-- Plate I — Loggerhead -->
+  <article class="plate tree rise d2">
+    <div class="plate-figure">
+      <span class="plate-cat">Plate <b>I</b> · Phylogeny</span>
+      <svg viewBox="0 0 32 28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <ellipse cx="16" cy="4" rx="2.3" ry="2"/>
+        <path d="M7 11 C 3 10, 1.5 12, 3 15"/><path d="M25 11 C 29 10, 30.5 12, 29 15"/>
+        <path d="M7 20 C 4 22, 3.5 25, 6 25"/><path d="M25 20 C 28 22, 28.5 25, 26 25"/>
+        <ellipse cx="16" cy="15" rx="10" ry="9"/>
+        <path d="M16 22 V19 M11 19 H21 M11 19 V15 M21 19 V15 M9 15 H13 M19 15 H23 M9 15 V11 M13 15 V11 M19 15 V11 M23 15 V11" stroke-width="1.1"/>
+        <circle cx="9" cy="11" r="1.1" fill="currentColor" stroke="none"/>
+        <circle cx="13" cy="11" r="1.1" fill="currentColor" stroke="none"/>
+        <circle cx="19" cy="11" r="1.1" fill="currentColor" stroke="none"/>
+        <circle cx="23" cy="11" r="1.1" fill="currentColor" stroke="none"/>
+      </svg>
+    </div>
+    <div class="plate-body">
+      <h2>Loggerhead</h2>
+      <p class="role">An interactive viewer for time-resolved phylogenetic trees.</p>
+      <dl class="spec">
+        <div><dt>Reads</dt><dd>Auspice / Nextstrain JSON or Newick (.nwk, .tree, .tre)</dd></div>
+        <div><dt>Shows</dt><dd>Tree layouts, clade &amp; geography coloring, divergence vs. date</dd></div>
+        <div><dt>Answers</dt><dd>How are these genomes related, and when did they diverge?</dd></div>
+      </dl>
+      <div class="plate-actions">
+        <!-- UPDATE: live app URL once Loggerhead is on GitHub Pages -->
+        <a class="btn btn-open" href="loggerhead/loggerhead.html">
+          Open Loggerhead
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h7v7M13 3 4 12"/></svg>
+        </a>
+        <!-- UPDATE: source repo URL -->
+        <a class="btn btn-src" href="https://github.com/BPHL-Molecular/Reef/tree/main/loggerhead" target="_blank" rel="noopener">Source</a>
+      </div>
+      <p class="named">Named for the loggerhead sea turtle, which nests along Florida&rsquo;s coasts.</p>
+    </div>
+  </article>
+
+  <!-- Plate II — Calusa -->
+  <article class="plate net rise d3">
+    <div class="plate-figure">
+      <span class="plate-cat">Plate <b>II</b> · Network</span>
+      <svg viewBox="0 0 32 28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M16 14 L16 5" stroke-width="1.1"/><path d="M16 14 L8 7" stroke-width="1.1"/>
+        <path d="M16 14 L24 8" stroke-width="1.1"/><path d="M16 14 L9 20" stroke-width="1.1"/>
+        <path d="M16 14 L23 21" stroke-width="1.1"/><path d="M8 7 L16 5" stroke-width="1.1"/>
+        <path d="M9 20 L23 21" stroke-width="1.1"/>
+        <circle cx="16" cy="14" r="2.7" fill="currentColor" stroke="none"/>
+        <circle cx="16" cy="5" r="2.1"/>
+        <circle cx="8" cy="7" r="2.1" fill="currentColor" stroke="none"/>
+        <circle cx="24" cy="8" r="2.1"/>
+        <circle cx="9" cy="20" r="2.1"/>
+        <circle cx="23" cy="21" r="2.1" fill="currentColor" stroke="none"/>
+      </svg>
+    </div>
+    <div class="plate-body">
+      <h2>Calusa</h2>
+      <p class="role">An interactive viewer for genetic-distance transmission networks.</p>
+      <dl class="spec">
+        <div><dt>Reads</dt><dd>FASTA haplotypes &rarr; network JSON</dd></div>
+        <div><dt>Shows</dt><dd>Force-directed graph, distance-threshold clusters, link weighting</dd></div>
+        <div><dt>Answers</dt><dd>Which samples are close enough to be linked?</dd></div>
+      </dl>
+      <div class="plate-actions">
+        <!-- UPDATE: live app URL (calusa.html on GitHub Pages) -->
+        <a class="btn btn-open" href="calusa/calusa.html">
+          Open Calusa
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h7v7M13 3 4 12"/></svg>
+        </a>
+        <a class="btn btn-src" href="https://github.com/BPHL-Molecular/Reef/tree/main/calusa" target="_blank" rel="noopener">Source</a>
+      </div>
+      <p class="named">Named for Calusa Beach on Bahia Honda Key, Florida.</p>
+    </div>
+  </article>
+
+</section>
+
+<!-- ══ Privacy band ════════════════════════════════════ -->
+<section class="wrap">
+  <div class="band">
+    <div class="eyebrow">Data handling<span class="dot"></span>Local only</div>
+    <h3>Your sequences never leave the browser.</h3>
+    <p>Both tools read the file you open on your own machine and render it there. <b>Nothing is uploaded</b> — not to GitHub, not to us, not to any server. Save either page and it runs fully offline. That matters when genomic data is tied to identifiable, reportable conditions and cannot be sent to an outside service.</p>
+  </div>
+</section>
+
+<!-- ══ Citation ════════════════════════════════════════ -->
+<section class="wrap cite">
+  <div class="eyebrow">Use in your work</div>
+  <h3>Citing these tools</h3>
+  <pre><span class="ph">[Authors]</span>. Reef: browser-based tools (Loggerhead and Calusa) for
+visualizing pathogen phylogenies and transmission networks in public
+health genomic surveillance. <span class="ph">[Journal]</span>. <span class="ph">[Year]</span>;<span class="ph">[vol]</span>:<span class="ph">[pages]</span>. doi:<span class="ph">[DOI]</span></pre>
+</section>
+
+<!-- ══ Footer ══════════════════════════════════════════ -->
+<footer>
+  <div class="wrap footer-inner">
+    <span>BPHL&#8209;Molecular</span>
+    <span class="sep">·</span>
+    <a href="https://github.com/BPHL-Molecular/Reef" target="_blank" rel="noopener">GitHub</a>
+    <span class="sep">·</span>
+    <span>MIT License</span>
+    <span class="right">Reef · genomic surveillance toolkit</span>
+  </div>
+</footer>
+
+</body>
+</html>
