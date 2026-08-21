@@ -83,16 +83,6 @@ python calusa/calusa.py --input aln.fasta --threshold 0.037 --output ./out
 
 `calusa.py` options: `--input/-i` (aligned FASTA), `--threshold/-t` (distance cutoff, default `0.037`), `--output/-o` (output directory, default `.`), and `--create-sample` to write an example FASTA.
 
-## Deploying the live site (GitHub Pages)
-
-The live link is served by GitHub Pages from the `main` branch. To enable it (one-time, repository owner):
-
-1. **Settings → Pages**
-2. Under **Build and deployment → Source**, choose **Deploy from a branch**
-3. Set **Branch** = `main`, **Folder** = `/ (root)`, then **Save**
-4. Wait ~1 minute, then open https://bphl-molecular.github.io/Reef/
-
-If the link 404s, confirm `index.html` is at the repository root and that link paths match exactly — GitHub Pages is **case-sensitive** (`loggerhead/loggerhead.html`, not `Loggerhead/...`).
 
 ## Citing Reef
 
