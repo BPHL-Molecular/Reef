@@ -1,0 +1,52 @@
+(nextflow) [dongyibo@login11 run_commands]$ python concordance.py --calusa sweep_out/t_0.02/network.json --metadata reef
+_metadata.tsv --id-col accession --group-col patient
+nodes analysed: 234   clusters: 18   patients: 8
+
+cluster x patient cross-tab:
+cluster       cate    curci     ferr     pila    ricci    roset    russo     vern   size  purity dominant
+---------------------------------------------------------------------------------------------------------
+0               19        0        0        0        0        0        0        0     19   100%  cate
+1                5        0        0        0        0        0        0        0      5   100%  cate
+2                2        0        0        0        0        0        0        0      2   100%  cate
+3                3        0        0        0        0        0        0        0      3   100%  cate
+4                0       30        0        0        0        0        0        0     30   100%  curci
+5                0        0        2        0        0        0        0        0      2   100%  ferr
+6                0        0       18        0        0        0        0        0     18   100%  ferr
+7                0        0        9        0        0        0        0        0      9   100%  ferr
+8                0        0        0       30        0        0        0        0     30   100%  pila
+9                0        0        0        0        2        0        0        0      2   100%  ricci
+10               0        0        0        0       21        0        0        0     21   100%  ricci
+11               0        0        0        0        4        0        0        0      4   100%  ricci
+12               0        0        0        0        0       30        0        0     30   100%  roset
+13               0        0        0        0        0        0       25        0     25   100%  russo
+14               0        0        0        0        0        0        4        0      4   100%  russo
+15               0        0        0        0        0        0        0        8      8   100%  vern
+16               0        0        0        0        0        0        0       15     15   100%  vern
+17               0        0        0        0        0        0        0        7      7   100%  vern
+---------------------------------------------------------------------------------------------------------
+
+pure clusters (subset of one patient): 18/18
+Adjusted Rand Index (cluster vs patient): 0.813
+  ~1.0 = clusters refine groups cleanly; lower = clusters cross group boundaries.
+(nextflow) [dongyibo@login11 run_commands]$ python concordance.py --calusa sweep_out/t_0.06/network.json --metadata reef
+_metadata.tsv --id-col accession --group-col patient
+nodes analysed: 240   clusters: 10   patients: 8
+
+cluster x patient cross-tab:
+cluster       cate    curci     ferr     pila    ricci    roset    russo     vern   size  purity dominant
+---------------------------------------------------------------------------------------------------------
+0               30        0        0        0        0        0        0        0     30   100%  cate
+1                0       30        0        0        0        0        0        0     30   100%  curci
+2                0        0        3        0        0        0        0        0      3   100%  ferr
+3                0        0       18        0        0        0        0        0     18   100%  ferr
+4                0        0        9        0        0        0        0        0      9   100%  ferr
+5                0        0        0       30        0        0        0        0     30   100%  pila
+6                0        0        0        0       30        0        0        0     30   100%  ricci
+7                0        0        0        0        0       30        0        0     30   100%  roset
+8                0        0        0        0        0        0       30        0     30   100%  russo
+9                0        0        0        0        0        0        0       30     30   100%  vern
+---------------------------------------------------------------------------------------------------------
+
+pure clusters (subset of one patient): 10/10
+Adjusted Rand Index (cluster vs patient): 0.959
+  ~1.0 = clusters refine groups cleanly; lower = clusters cross group boundaries.
