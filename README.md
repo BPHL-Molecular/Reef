@@ -84,9 +84,6 @@ python calusa/calusa.py --input aln.fasta --threshold 0.037 --output ./out
 `calusa.py` options: `--input/-i` (aligned FASTA), `--threshold/-t` (distance cutoff, default `0.037`), `--output/-o` (output directory, default `.`), and `--create-sample` to write an example FASTA.
 
 
-## Citing Reef
-
-> [Authors]. Reef: single-file, browser-based visualization of pathogen phylogenies and genetic-distance networks for public health genomics. *Microbial Genomics* (year). Software: Zenodo DOI [to be minted].
 
 ## License
 
